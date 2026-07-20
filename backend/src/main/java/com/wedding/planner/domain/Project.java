@@ -1,0 +1,236 @@
+package com.wedding.planner.domain;
+
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.ForeignKey;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.UUID;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
+/**
+ * A single wedding project — the aggregate root that owns tasks, vendors and expenses.
+ *
+ * <p>Ownership foreign keys live here:
+ * <ul>
+ *   <li>{@link #planner} — the managing {@code ROLE_PLANNER} (required, MANY projects per planner).</li>
+ *   <li>{@link #owner} — the couple {@code ROLE_USER}. The unique constraint on {@code owner_id}
+ *       enforces the "a couple has exactly one project" rule at the database level.</li>
+ * </ul>
+ */
+@Entity
+@Table(
+        name = "projects",
+        uniqueConstraints = @UniqueConstraint(name = "uq_projects_owner", columnNames = "owner_id")
+)
+public class Project {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(name = "id", updatable = false, nullable = false)
+    private UUID id;
+
+    @Column(name = "name", nullable = false, length = 200)
+    private String name;
+
+    @Column(name = "wedding_date")
+    private LocalDate weddingDate;
+
+    @Column(name = "total_budget", precision = 12, scale = 2)
+    private BigDecimal totalBudget;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(
+            name = "planner_id",
+            nullable = false,
+            foreignKey = @ForeignKey(name = "fk_projects_planner")
+    )
+    private User planner;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(
+            name = "owner_id",
+            foreignKey = @ForeignKey(name = "fk_projects_owner")
+    )
+    private User owner;
+
+    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<Task> tasks = new ArrayList<>();
+
+    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<Vendor> vendors = new ArrayList<>();
+
+    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<Expense> expenses = new ArrayList<>();
+
+    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<Guest> guests = new ArrayList<>();
+
+    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<TimelineEvent> timelineEvents = new ArrayList<>();
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
+
+    protected Project() {
+        // Required by JPA.
+    }
+
+    public Project(String name, User planner) {
+        this.name = name;
+        this.planner = planner;
+    }
+
+    // --- Association helpers keep both sides of the relationship consistent ---
+
+    public void addTask(Task task) {
+        tasks.add(task);
+        task.setProject(this);
+    }
+
+    public void removeTask(Task task) {
+        tasks.remove(task);
+        task.setProject(null);
+    }
+
+    public void addVendor(Vendor vendor) {
+        vendors.add(vendor);
+        vendor.setProject(this);
+    }
+
+    public void removeVendor(Vendor vendor) {
+        vendors.remove(vendor);
+        vendor.setProject(null);
+    }
+
+    public void addExpense(Expense expense) {
+        expenses.add(expense);
+        expense.setProject(this);
+    }
+
+    public void removeExpense(Expense expense) {
+        expenses.remove(expense);
+        expense.setProject(null);
+    }
+
+    public void addGuest(Guest guest) {
+        guests.add(guest);
+        guest.setProject(this);
+    }
+
+    public void removeGuest(Guest guest) {
+        guests.remove(guest);
+        guest.setProject(null);
+    }
+
+    // --- Getters / setters ---
+
+    public UUID getId() {
+        return id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public LocalDate getWeddingDate() {
+        return weddingDate;
+    }
+
+    public void setWeddingDate(LocalDate weddingDate) {
+        this.weddingDate = weddingDate;
+    }
+
+    public BigDecimal getTotalBudget() {
+        return totalBudget;
+    }
+
+    public void setTotalBudget(BigDecimal totalBudget) {
+        this.totalBudget = totalBudget;
+    }
+
+    public User getPlanner() {
+        return planner;
+    }
+
+    public void setPlanner(User planner) {
+        this.planner = planner;
+    }
+
+    public User getOwner() {
+        return owner;
+    }
+
+    public void setOwner(User owner) {
+        this.owner = owner;
+    }
+
+    public List<Task> getTasks() {
+        return tasks;
+    }
+
+    public List<Vendor> getVendors() {
+        return vendors;
+    }
+
+    public List<Expense> getExpenses() {
+        return expenses;
+    }
+
+    public List<Guest> getGuests() {
+        return guests;
+    }
+
+    public List<TimelineEvent> getTimelineEvents() {
+        return timelineEvents;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (!(o instanceof Project other)) {
+            return false;
+        }
+        return id != null && id.equals(other.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getClass());
+    }
+}

@@ -1,0 +1,60 @@
+spring:
+  application:
+    name: wedding-planner-backend
+
+  datasource:
+    # Supabase (Session Pooler, port 5432) — see .env / .env.example. Values are supplied via
+    # environment variables so no credentials are committed. The Session Pooler is IPv4-friendly
+    # and supports the session-level features Flyway needs (advisory locks, transactional DDL).
+    # URL shape: jdbc:postgresql://aws-0-<region>.pooler.supabase.com:5432/postgres?sslmode=require
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    hikari:
+      pool-name: wedding-pool
+      # Keep the app-side pool small; the Supabase pooler multiplexes many clients onto few
+      # server connections, and free-tier connection limits are low.
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:5}
+      minimum-idle: ${DB_POOL_MIN_IDLE:1}
+      connection-timeout: 30000
+      # Recycle connections before the pooler drops idle ones (default pooler idle timeout ~15m).
+      max-lifetime: 600000
+      keepalive-time: 300000
+
+  jpa:
+    hibernate:
+      # Flyway owns the schema. Hibernate only validates that entities match it.
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+        # Store Instants in plain TIMESTAMP columns normalized to UTC. This makes the
+        # entity <-> Flyway DDL contract deterministic for ddl-auto: validate.
+        timezone:
+          default_storage: NORMALIZE_UTC
+        format_sql: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+
+logging:
+  level:
+    org.hibernate.SQL: info
+
+# Application-specific settings.
+app:
+  jwt:
+    # HS256 signing secret. Override in real environments via APP_JWT_SECRET.
+    # Must be at least 32 bytes for HS256.
+    secret: ${APP_JWT_SECRET:change-me-in-prod-a-very-long-dev-only-secret-key-0123456789}
+    # Access-token lifetime in milliseconds (default 24h).
+    expiration-ms: ${APP_JWT_EXPIRATION_MS:86400000}
+    issuer: wedding-planner
+  # Seed admin account created on startup if absent (dev convenience).
+  admin:
+    email: ${APP_ADMIN_EMAIL:admin@wedding.test}
+    password: ${APP_ADMIN_PASSWORD:admin12345}

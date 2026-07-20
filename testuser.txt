@@ -1,0 +1,32 @@
+Wedding Planner — test user accounts
+=====================================
+Development/testing credentials only. These accounts exist in the dev (Supabase) database.
+Log in at http://localhost:3000/login (backend must be running on :8080).
+
+ROLE_ADMIN (platform administrator — sees all projects, /admin dashboard)
+  email:    admin@wedding.test
+  password: admin12345
+  note:     seeded automatically at backend startup (override via APP_ADMIN_EMAIL /
+            APP_ADMIN_PASSWORD in backend/.env)
+
+ROLE_PLANNER (wedding planner — manages own projects, can invite couples)
+  email:    planner@test.com
+  password: Planner123!
+  note:     manages the sample project "Sample Wedding"
+
+ROLE_USER (couple — sees only their own wedding)
+  email:    couple@test.com
+  password: Couple123!
+  note:     owns the sample project "Sample Wedding" (managed by planner@test.com)
+
+Sample data
+-----------
+"Sample Wedding" (Dec 12, 2026, ₱500,000 budget) is shared by the planner and couple above and
+contains a couple of tasks, a booked florist, two expenses, and one attending guest — so every
+role has something to look at on first login.
+
+What each role should see
+-------------------------
+- admin@wedding.test   -> "All projects" dashboard, Admin link in the header, /admin works
+- planner@test.com     -> "Your projects" + New project button, invite card on unowned projects
+- couple@test.com      -> "Your wedding" only; no New project button; /admin redirects away
