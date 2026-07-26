@@ -2,8 +2,6 @@ package com.wedding.planner.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.ForeignKey;
 import jakarta.persistence.GeneratedValue;
@@ -12,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -30,9 +29,13 @@ public class Vendor {
     @Column(name = "name", nullable = false, length = 200)
     private String name;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "category", nullable = false, length = 20)
-    private VendorCategory category = VendorCategory.OTHER;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(
+            name = "category_id",
+            nullable = false,
+            foreignKey = @ForeignKey(name = "fk_vendors_category")
+    )
+    private VendorCategory category;
 
     @Column(name = "contact_email", length = 255)
     private String contactEmail;
@@ -42,6 +45,31 @@ public class Vendor {
 
     @Column(name = "booked", nullable = false)
     private boolean booked = false;
+
+    /** The agreed ("done deal") price. When set, a linked budget expense is kept in sync. */
+    @Column(name = "agreed_price", precision = 12, scale = 2)
+    private BigDecimal agreedPrice;
+
+    /** Optional link back to the global directory entry this vendor was added from. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(
+            name = "directory_id",
+            foreignKey = @ForeignKey(name = "fk_vendors_directory")
+    )
+    private VendorDirectoryEntry directoryEntry;
+
+    /**
+     * Set when this vendor is a component item nested under a package (e.g. a coordinator
+     * package bundling catering + photography); null for a top-level vendor. A package's price,
+     * payments, and managed budget line live only on the top-level vendor — see
+     * {@code VendorService.syncVendorExpense}.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(
+            name = "parent_id",
+            foreignKey = @ForeignKey(name = "fk_vendors_parent")
+    )
+    private Vendor parent;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(
@@ -102,6 +130,30 @@ public class Vendor {
 
     public void setBooked(boolean booked) {
         this.booked = booked;
+    }
+
+    public BigDecimal getAgreedPrice() {
+        return agreedPrice;
+    }
+
+    public void setAgreedPrice(BigDecimal agreedPrice) {
+        this.agreedPrice = agreedPrice;
+    }
+
+    public VendorDirectoryEntry getDirectoryEntry() {
+        return directoryEntry;
+    }
+
+    public void setDirectoryEntry(VendorDirectoryEntry directoryEntry) {
+        this.directoryEntry = directoryEntry;
+    }
+
+    public Vendor getParent() {
+        return parent;
+    }
+
+    public void setParent(Vendor parent) {
+        this.parent = parent;
     }
 
     public Project getProject() {

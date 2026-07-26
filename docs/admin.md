@@ -24,6 +24,19 @@ Non-admins get 403 on all of these (covered by integration tests).
 Admins also see every project on the regular dashboard (role-scoped listing) and can access any
 project, its tabs, and its invitations.
 
+## Admin sub-pages
+
+Linked as cards from `/admin`:
+
+- `/admin/templates` — checklist/vendor template catalog (see [templates.md](templates.md)).
+- `/admin/vendor-categories` — manage the vendor-category lookup table.
+- `/admin/vendor-directory` — manage the global vendor directory.
+- `/admin/reports` — vendors-by-category, in-demand-vendors, and booking-conversion reports with
+  CSV export.
+
+The last three are covered in [vendor-catalog.md](vendor-catalog.md); each backend endpoint sits
+under `/api/admin/**` (`hasRole('ADMIN')`), and the pages redirect non-admins to `/dashboard`.
+
 ## Key files
 
 - `backend/.../service/AdminService.java`, `web/AdminController.java`, `dto/AdminDtos.java`

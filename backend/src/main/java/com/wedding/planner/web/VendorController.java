@@ -1,6 +1,9 @@
 package com.wedding.planner.web;
 
 import com.wedding.planner.dto.TemplateDtos.ApplyTemplateRequest;
+import com.wedding.planner.dto.VendorDirectoryDtos.AddFromDirectoryRequest;
+import com.wedding.planner.dto.VendorPaymentDtos.VendorPaymentRequest;
+import com.wedding.planner.dto.VendorPaymentDtos.VendorPaymentResponse;
 import com.wedding.planner.dto.VendorRequest;
 import com.wedding.planner.dto.VendorResponse;
 import com.wedding.planner.service.TemplateService;
@@ -48,6 +51,16 @@ public class VendorController {
                 .body(templateService.applyVendorTemplate(projectId, request.templateId()));
     }
 
+    /** Adds a global directory entry into this project as a new (linked) vendor. */
+    @PostMapping("/from-directory")
+    @PreAuthorize("hasAnyRole('ADMIN', 'PLANNER') and @projectSecurity.canAccess(#projectId, authentication)")
+    public ResponseEntity<VendorResponse> addFromDirectory(
+            @PathVariable UUID projectId,
+            @Valid @RequestBody AddFromDirectoryRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(vendorService.addFromDirectory(projectId, request.directoryId()));
+    }
+
     @GetMapping
     @PreAuthorize("@projectSecurity.canAccess(#projectId, authentication)")
     public List<VendorResponse> list(@PathVariable UUID projectId) {
@@ -73,6 +86,34 @@ public class VendorController {
     @PreAuthorize("@projectSecurity.canAccess(#projectId, authentication)")
     public ResponseEntity<Void> delete(@PathVariable UUID projectId, @PathVariable UUID vendorId) {
         vendorService.delete(projectId, vendorId);
+        return ResponseEntity.noContent().build();
+    }
+
+    // --- Vendor payments (installments against the agreed full amount) ---
+
+    @GetMapping("/{vendorId}/payments")
+    @PreAuthorize("@projectSecurity.canAccess(#projectId, authentication)")
+    public List<VendorPaymentResponse> listPayments(@PathVariable UUID projectId,
+                                                    @PathVariable UUID vendorId) {
+        return vendorService.listPayments(projectId, vendorId);
+    }
+
+    @PostMapping("/{vendorId}/payments")
+    @PreAuthorize("@projectSecurity.canAccess(#projectId, authentication)")
+    public ResponseEntity<VendorPaymentResponse> addPayment(
+            @PathVariable UUID projectId,
+            @PathVariable UUID vendorId,
+            @Valid @RequestBody VendorPaymentRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(vendorService.addPayment(projectId, vendorId, request));
+    }
+
+    @DeleteMapping("/{vendorId}/payments/{paymentId}")
+    @PreAuthorize("@projectSecurity.canAccess(#projectId, authentication)")
+    public ResponseEntity<Void> deletePayment(@PathVariable UUID projectId,
+                                              @PathVariable UUID vendorId,
+                                              @PathVariable UUID paymentId) {
+        vendorService.deletePayment(projectId, vendorId, paymentId);
         return ResponseEntity.noContent().build();
     }
 }

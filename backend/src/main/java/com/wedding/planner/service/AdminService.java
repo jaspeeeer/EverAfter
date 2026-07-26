@@ -81,7 +81,8 @@ public class AdminService {
                 usersByRole,
                 projectRepository.count(),
                 taskRepository.count(),
-                vendorRepository.count(),
+                // Top-level only — a package's items aren't separate vendors for this count.
+                vendorRepository.countByParentIsNull(),
                 expenseRepository.count(),
                 guestRepository.count());
     }

@@ -66,11 +66,25 @@ Flyway owns the schema (`backend/src/main/resources/db/migration/`); Hibernate r
 `ddl-auto: validate`. Tables: `roles`, `users`, `user_roles`, `projects`, `tasks`, `vendors`,
 `expenses`, `guests` (+`table_number`, `rsvp_token`), `invitations`, the template catalog
 (`checklist_templates`/`_items`, `vendor_templates`/`_items` — admin-authored, applied by
-planners; see `docs/templates.md`), and the wedding-day timeline (`timeline_events` +
+planners; see `docs/templates.md`), the wedding-day timeline (`timeline_events` +
 `timeline_event_vendors` M2M with DB-level `ON DELETE CASCADE`; times before 04:00 sort as
-after-midnight — see `docs/timeline.md`). New schema change = new `V<n>__*.sql`, never edit an
-applied migration. `DataInitializer` seeds the 3 roles + admin account + starter templates on
-boot (idempotent).
+after-midnight — see `docs/timeline.md`), and the vendor catalog: `vendor_categories`
+(admin-managed lookup — **`VendorCategory` is now an @Entity, not an enum** — vendors &
+template items reference it by FK; delete deactivates if in use), `vendor_directory` (global
+admin catalog), plus `vendors.agreed_price` (the vendor's full amount)/`directory_id` and
+`expenses.vendor_id` (a vendor mapping; the `managed` line is the agreed-price→budget link — `V9`
+made it `ON DELETE SET NULL` so manual mappings survive vendor deletion); see
+`docs/vendor-catalog.md`. **`expenses` also reference `vendor_categories` by FK (`category_id`,
+`V8`) — expense and vendor categories are one admin-managed lookup, so the old `ExpenseCategory`
+enum is gone** (`V8` backfilled it: `FLOWERS`→Florist, `GIFTS`→Other, else same slug). Vendor
+payments/installments live in `vendor_payments` (`V10`); a managed expense's `expenses.paid_amount`
+= the sum of its vendor's payments, and the budget's paid total is `sum(paid_amount)` (partial, not
+all-or-nothing). **`vendors.parent_id`** (`V11`, self-FK `ON DELETE CASCADE`) makes a vendor a
+"package item" nested under another (top-level) vendor — a package holds the one bundled
+price/payments; an item has none of its own (`VendorService.syncVendorExpense` skips items), and
+the admin vendor reports + `totalVendors` stat filter `parent is null` so items aren't double
+counted. New schema change = new `V<n>__*.sql`, never edit an applied migration. `DataInitializer`
+seeds the 3 roles + admin account + starter templates on boot (idempotent).
 
 Supabase specifics: connect via the **Session Pooler**
 (`aws-1-ap-northeast-2.pooler.supabase.com:5432`, user `postgres.<project-ref>`,

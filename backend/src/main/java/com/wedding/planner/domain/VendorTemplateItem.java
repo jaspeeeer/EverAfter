@@ -2,8 +2,6 @@ package com.wedding.planner.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.ForeignKey;
 import jakarta.persistence.GeneratedValue;
@@ -30,9 +28,13 @@ public class VendorTemplateItem {
     @Column(name = "name", nullable = false, length = 200)
     private String name;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "category", nullable = false, length = 20)
-    private VendorCategory category = VendorCategory.OTHER;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(
+            name = "category_id",
+            nullable = false,
+            foreignKey = @ForeignKey(name = "fk_vti_category")
+    )
+    private VendorCategory category;
 
     /** Position within the template; assigned by {@link VendorTemplate#addItem}. */
     @Column(name = "sort_order", nullable = false)

@@ -5,8 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 import com.wedding.planner.domain.Expense;
-import com.wedding.planner.domain.ExpenseCategory;
 import com.wedding.planner.domain.Project;
+import com.wedding.planner.domain.VendorCategory;
 import com.wedding.planner.dto.BudgetSummaryResponse;
 import com.wedding.planner.exception.ResourceNotFoundException;
 import com.wedding.planner.repository.ExpenseRepository;
@@ -39,8 +39,9 @@ class BudgetServiceTest {
     private final UUID projectId = UUID.randomUUID();
 
     private Expense expense(String amount, boolean paid) {
-        Expense e = new Expense("desc", new BigDecimal(amount), ExpenseCategory.OTHER);
+        Expense e = new Expense("desc", new BigDecimal(amount), new VendorCategory("Other", "OTHER", 0));
         e.setPaid(paid);
+        e.setPaidAmount(paid ? new BigDecimal(amount) : BigDecimal.ZERO);
         return e;
     }
 

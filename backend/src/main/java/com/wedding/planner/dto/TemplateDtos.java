@@ -2,7 +2,6 @@ package com.wedding.planner.dto;
 
 import com.wedding.planner.domain.ChecklistTemplate;
 import com.wedding.planner.domain.ChecklistTemplateItem;
-import com.wedding.planner.domain.VendorCategory;
 import com.wedding.planner.domain.VendorTemplate;
 import com.wedding.planner.domain.VendorTemplateItem;
 import jakarta.validation.Valid;
@@ -63,7 +62,7 @@ public final class TemplateDtos {
 
     public record VendorItemRequest(
             @NotBlank String name,
-            @NotNull VendorCategory category) {
+            @NotNull UUID categoryId) {
     }
 
     public record VendorTemplateRequest(
@@ -72,10 +71,11 @@ public final class TemplateDtos {
             @NotEmpty List<@Valid VendorItemRequest> items) {
     }
 
-    public record VendorItemResponse(String name, VendorCategory category) {
+    public record VendorItemResponse(String name, UUID categoryId, String categoryName) {
 
         static VendorItemResponse from(VendorTemplateItem item) {
-            return new VendorItemResponse(item.getName(), item.getCategory());
+            return new VendorItemResponse(
+                    item.getName(), item.getCategory().getId(), item.getCategory().getName());
         }
     }
 

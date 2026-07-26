@@ -71,12 +71,27 @@ class TimelineIntegrationTest extends AbstractIntegrationTest {
         return json(result).get("id").asText();
     }
 
+    private String categoryId(String token, String slug) throws Exception {
+        MvcResult result = mockMvc.perform(get("/api/vendor-categories")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andReturn();
+        for (JsonNode node : json(result)) {
+            if (node.get("slug").asText().equals(slug)) {
+                return node.get("id").asText();
+            }
+        }
+        throw new IllegalStateException("No seeded category with slug " + slug);
+    }
+
     private String createVendor(String token, String projectId, String name) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/projects/" + projectId + "/vendors")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "name", name, "category", "BEAUTY", "booked", true))))
+                                "name", name,
+                                "categoryId", categoryId(token, "BEAUTY"),
+                                "booked", true))))
                 .andExpect(status().isCreated())
                 .andReturn();
         return json(result).get("id").asText();
@@ -116,7 +131,7 @@ class TimelineIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$[0].title").value("Hair & makeup call"))
                 .andExpect(jsonPath("$[0].vendors.length()").value(1))
                 .andExpect(jsonPath("$[0].vendors[0].name").value("Glam Studio"))
-                .andExpect(jsonPath("$[0].vendors[0].category").value("BEAUTY"));
+                .andExpect(jsonPath("$[0].vendors[0].categoryName").value("Beauty"));
 
         // Update replaces fields and the vendor set.
         mockMvc.perform(put("/api/projects/" + projectId + "/timeline/" + eventId)

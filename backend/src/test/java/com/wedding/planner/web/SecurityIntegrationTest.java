@@ -227,16 +227,30 @@ class SecurityIntegrationTest extends AbstractIntegrationTest {
     }
 
     private void addExpense(String token, String projectId, String description, int amount,
-                            boolean paid, String category) throws Exception {
+                            boolean paid, String categorySlug) throws Exception {
         mockMvc.perform(post("/api/projects/" + projectId + "/expenses")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "description", description,
                                 "amount", amount,
-                                "category", category,
+                                "categoryId", categoryId(token, categorySlug),
                                 "paid", paid))))
                 .andExpect(status().isCreated());
+    }
+
+    /** Resolves a seeded vendor-category id by slug (expenses now reference that lookup). */
+    private String categoryId(String token, String slug) throws Exception {
+        MvcResult result = mockMvc.perform(get("/api/vendor-categories")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andReturn();
+        for (JsonNode node : objectMapper.readTree(result.getResponse().getContentAsString())) {
+            if (node.get("slug").asText().equals(slug)) {
+                return node.get("id").asText();
+            }
+        }
+        throw new IllegalStateException("No seeded category " + slug);
     }
 
     @Test

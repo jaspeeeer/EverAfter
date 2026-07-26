@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.wedding.planner.AbstractPostgresContainerTest;
 import com.wedding.planner.repository.ExpenseRepository;
 import com.wedding.planner.repository.TaskRepository;
+import com.wedding.planner.repository.VendorCategoryRepository;
 import com.wedding.planner.repository.VendorRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -30,6 +31,14 @@ class ProjectChildrenMappingTest extends AbstractPostgresContainerTest {
     @Autowired
     private ExpenseRepository expenseRepository;
 
+    @Autowired
+    private VendorCategoryRepository vendorCategoryRepository;
+
+    /** Vendor categories are seeded by the V6 migration; look one up by slug. */
+    private VendorCategory category(String slug) {
+        return vendorCategoryRepository.findBySlug(slug).orElseThrow();
+    }
+
     private Project persistProject(String name) {
         User planner = em.persistAndFlush(new User(name + "-planner@wedding.test", "hash", "P", "L"));
         return em.persistAndFlush(new Project(name, planner));
@@ -43,12 +52,12 @@ class ProjectChildrenMappingTest extends AbstractPostgresContainerTest {
         task.setDueDate(LocalDate.of(2026, 9, 1));
         project.addTask(task);
 
-        Vendor vendor = new Vendor("Blooms & Co", VendorCategory.FLORIST);
+        Vendor vendor = new Vendor("Blooms & Co", category("FLORIST"));
         vendor.setContactEmail("hello@blooms.test");
         vendor.setBooked(true);
         project.addVendor(vendor);
 
-        Expense expense = new Expense("Deposit", new BigDecimal("1500.00"), ExpenseCategory.VENUE);
+        Expense expense = new Expense("Deposit", new BigDecimal("1500.00"), category("VENUE"));
         expense.setPaid(true);
         project.addExpense(expense);
 
@@ -64,14 +73,14 @@ class ProjectChildrenMappingTest extends AbstractPostgresContainerTest {
         assertThat(vendorRepository.findByProjectId(project.getId()))
                 .singleElement()
                 .satisfies(v -> {
-                    assertThat(v.getCategory()).isEqualTo(VendorCategory.FLORIST);
+                    assertThat(v.getCategory().getSlug()).isEqualTo("FLORIST");
                     assertThat(v.isBooked()).isTrue();
                 });
         assertThat(expenseRepository.findByProjectId(project.getId()))
                 .singleElement()
                 .satisfies(e -> {
                     assertThat(e.getAmount()).isEqualByComparingTo("1500.00");
-                    assertThat(e.getCategory()).isEqualTo(ExpenseCategory.VENUE);
+                    assertThat(e.getCategory().getSlug()).isEqualTo("VENUE");
                 });
     }
 
@@ -92,8 +101,8 @@ class ProjectChildrenMappingTest extends AbstractPostgresContainerTest {
     void deletingProjectCascadesToChildren() {
         Project project = persistProject("Cascade Wedding");
         project.addTask(new Task("A task", TaskStatus.TODO));
-        project.addVendor(new Vendor("A vendor", VendorCategory.MUSIC));
-        project.addExpense(new Expense("A cost", new BigDecimal("42.00"), ExpenseCategory.MUSIC));
+        project.addVendor(new Vendor("A vendor", category("MUSIC")));
+        project.addExpense(new Expense("A cost", new BigDecimal("42.00"), category("MUSIC")));
         em.persistAndFlush(project);
         em.clear();
 

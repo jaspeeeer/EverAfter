@@ -11,7 +11,9 @@ import com.wedding.planner.domain.VendorTemplateItem;
 import com.wedding.planner.repository.ChecklistTemplateRepository;
 import com.wedding.planner.repository.RoleRepository;
 import com.wedding.planner.repository.UserRepository;
+import com.wedding.planner.repository.VendorCategoryRepository;
 import com.wedding.planner.repository.VendorTemplateRepository;
+import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,6 +35,7 @@ public class DataInitializer implements CommandLineRunner {
     private final UserRepository userRepository;
     private final ChecklistTemplateRepository checklistTemplateRepository;
     private final VendorTemplateRepository vendorTemplateRepository;
+    private final VendorCategoryRepository vendorCategoryRepository;
     private final PasswordEncoder passwordEncoder;
     private final String adminEmail;
     private final String adminPassword;
@@ -41,6 +44,7 @@ public class DataInitializer implements CommandLineRunner {
                            UserRepository userRepository,
                            ChecklistTemplateRepository checklistTemplateRepository,
                            VendorTemplateRepository vendorTemplateRepository,
+                           VendorCategoryRepository vendorCategoryRepository,
                            PasswordEncoder passwordEncoder,
                            @Value("${app.admin.email}") String adminEmail,
                            @Value("${app.admin.password}") String adminPassword) {
@@ -48,6 +52,7 @@ public class DataInitializer implements CommandLineRunner {
         this.userRepository = userRepository;
         this.checklistTemplateRepository = checklistTemplateRepository;
         this.vendorTemplateRepository = vendorTemplateRepository;
+        this.vendorCategoryRepository = vendorCategoryRepository;
         this.passwordEncoder = passwordEncoder;
         this.adminEmail = adminEmail;
         this.adminPassword = adminPassword;
@@ -105,15 +110,18 @@ public class DataInitializer implements CommandLineRunner {
         }
 
         if (vendorTemplateRepository.count() == 0) {
+            // Categories are seeded by the V6 migration; look them up by stable slug.
+            Function<String, VendorCategory> cat = slug -> vendorCategoryRepository.findBySlug(slug)
+                    .orElseThrow(() -> new IllegalStateException("Missing seeded category: " + slug));
             VendorTemplate vendors = new VendorTemplate(
                     "Essential Vendors",
                     "The supplier slots most weddings need — add contacts as you shortlist.");
-            vendors.addItem(new VendorTemplateItem("Venue", VendorCategory.VENUE));
-            vendors.addItem(new VendorTemplateItem("Caterer", VendorCategory.CATERING));
-            vendors.addItem(new VendorTemplateItem("Photographer", VendorCategory.PHOTOGRAPHY));
-            vendors.addItem(new VendorTemplateItem("Videographer", VendorCategory.VIDEOGRAPHY));
-            vendors.addItem(new VendorTemplateItem("Florist", VendorCategory.FLORIST));
-            vendors.addItem(new VendorTemplateItem("Band / DJ", VendorCategory.MUSIC));
+            vendors.addItem(new VendorTemplateItem("Venue", cat.apply("VENUE")));
+            vendors.addItem(new VendorTemplateItem("Caterer", cat.apply("CATERING")));
+            vendors.addItem(new VendorTemplateItem("Photographer", cat.apply("PHOTOGRAPHY")));
+            vendors.addItem(new VendorTemplateItem("Videographer", cat.apply("VIDEOGRAPHY")));
+            vendors.addItem(new VendorTemplateItem("Florist", cat.apply("FLORIST")));
+            vendors.addItem(new VendorTemplateItem("Band / DJ", cat.apply("MUSIC")));
             vendorTemplateRepository.save(vendors);
             log.info("Seeded starter vendor template: {}", vendors.getName());
         }

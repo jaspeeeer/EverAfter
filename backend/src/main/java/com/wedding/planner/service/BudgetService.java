@@ -36,9 +36,9 @@ public class BudgetService {
         BigDecimal totalExpenses = expenses.stream()
                 .map(Expense::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+        // paidAmount captures partial payment (a vendor's installments), not just all-or-nothing.
         BigDecimal totalPaid = expenses.stream()
-                .filter(Expense::isPaid)
-                .map(Expense::getAmount)
+                .map(Expense::getPaidAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal totalOutstanding = totalExpenses.subtract(totalPaid);
 

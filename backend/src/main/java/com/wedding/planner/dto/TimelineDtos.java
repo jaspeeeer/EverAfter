@@ -2,7 +2,6 @@ package com.wedding.planner.dto;
 
 import com.wedding.planner.domain.TimelineEvent;
 import com.wedding.planner.domain.Vendor;
-import com.wedding.planner.domain.VendorCategory;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalTime;
@@ -29,7 +28,8 @@ public final class TimelineDtos {
     public record EventVendorResponse(
             UUID id,
             String name,
-            VendorCategory category,
+            UUID categoryId,
+            String categoryName,
             boolean booked,
             String contactEmail,
             String phone) {
@@ -38,7 +38,8 @@ public final class TimelineDtos {
             return new EventVendorResponse(
                     vendor.getId(),
                     vendor.getName(),
-                    vendor.getCategory(),
+                    vendor.getCategory().getId(),
+                    vendor.getCategory().getName(),
                     vendor.isBooked(),
                     vendor.getContactEmail(),
                     vendor.getPhone());

@@ -166,6 +166,11 @@ The backend suite (`cd backend && ./mvnw verify`) remains on Testcontainers.
   events into time slots from the makeup call to the after-party, link the suppliers involved,
   and drag blocks to reschedule (15-min snapping); clicking a slot shows its suppliers. Couples
   view the run sheet read-only. A "typical day" quick-start seeds the standard schedule.
+- **Vendor catalog & reports** — admin-managed vendor **categories** (a lookup table, not a hard
+  enum; delete deactivates when in use), a **global vendor directory** planners add from, a
+  vendor **agreed price** that feeds the Budget tab, and admin **reports** (vendors by category,
+  in-demand vendors over a date range, booking conversion) with CSV export. See
+  [docs/vendor-catalog.md](docs/vendor-catalog.md).
 
 ### UX polish
 

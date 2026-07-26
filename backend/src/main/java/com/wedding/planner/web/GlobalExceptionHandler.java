@@ -1,6 +1,7 @@
 package com.wedding.planner.web;
 
 import com.wedding.planner.exception.BadRequestException;
+import com.wedding.planner.exception.ConflictException;
 import com.wedding.planner.exception.EmailAlreadyExistsException;
 import com.wedding.planner.exception.ResourceNotFoundException;
 import java.time.Instant;
@@ -30,6 +31,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(EmailAlreadyExistsException.class)
     ProblemDetail handleConflict(EmailAlreadyExistsException ex) {
+        return problem(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    @ExceptionHandler(ConflictException.class)
+    ProblemDetail handleConflict(ConflictException ex) {
         return problem(HttpStatus.CONFLICT, ex.getMessage());
     }
 

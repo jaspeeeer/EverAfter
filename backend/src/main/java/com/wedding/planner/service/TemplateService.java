@@ -39,17 +39,20 @@ public class TemplateService {
     private final ProjectRepository projectRepository;
     private final TaskRepository taskRepository;
     private final VendorRepository vendorRepository;
+    private final VendorCategoryService vendorCategoryService;
 
     public TemplateService(ChecklistTemplateRepository checklistTemplateRepository,
                            VendorTemplateRepository vendorTemplateRepository,
                            ProjectRepository projectRepository,
                            TaskRepository taskRepository,
-                           VendorRepository vendorRepository) {
+                           VendorRepository vendorRepository,
+                           VendorCategoryService vendorCategoryService) {
         this.checklistTemplateRepository = checklistTemplateRepository;
         this.vendorTemplateRepository = vendorTemplateRepository;
         this.projectRepository = projectRepository;
         this.taskRepository = taskRepository;
         this.vendorRepository = vendorRepository;
+        this.vendorCategoryService = vendorCategoryService;
     }
 
     // --- Checklist template CRUD ---
@@ -99,8 +102,8 @@ public class TemplateService {
     @Transactional
     public VendorTemplateResponse createVendorTemplate(VendorTemplateRequest request) {
         VendorTemplate template = new VendorTemplate(request.name(), request.description());
-        request.items().forEach(item -> template.addItem(
-                new VendorTemplateItem(item.name(), item.category())));
+        request.items().forEach(item -> template.addItem(new VendorTemplateItem(
+                item.name(), vendorCategoryService.requireForAssignment(item.categoryId()))));
         return VendorTemplateResponse.from(vendorTemplateRepository.save(template));
     }
 
@@ -111,7 +114,8 @@ public class TemplateService {
         template.setName(request.name());
         template.setDescription(request.description());
         template.replaceItems(request.items().stream()
-                .map(item -> new VendorTemplateItem(item.name(), item.category()))
+                .map(item -> new VendorTemplateItem(
+                        item.name(), vendorCategoryService.requireForAssignment(item.categoryId())))
                 .toList());
         return VendorTemplateResponse.from(template);
     }
