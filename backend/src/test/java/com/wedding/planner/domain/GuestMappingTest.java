@@ -47,6 +47,38 @@ class GuestMappingTest extends AbstractPostgresContainerTest {
     }
 
     @Test
+    void classificationEnumsAndRoleRoundTrip() {
+        Project project = persistProject("Classified Wedding");
+        // A fresh role (name/slug not in the V12 seed set, to avoid the unique-constraint clash).
+        GuestRole role = em.persistAndFlush(new GuestRole("Test Role", "TEST_ROLE", 99));
+
+        Guest guest = new Guest("Sam", RsvpStatus.ATTENDING, 1);
+        guest.setPriority(GuestPriority.A);
+        guest.setRelatedTo(RelatedTo.GROOM);
+        guest.setRelationship(GuestRelationship.CLOSE_FRIEND);
+        guest.setRole(role);
+        project.addGuest(guest);
+
+        em.persistAndFlush(project);
+        em.clear();
+
+        assertThat(guestRepository.findByProjectId(project.getId()))
+                .singleElement()
+                .satisfies(g -> {
+                    assertThat(g.getPriority()).isEqualTo(GuestPriority.A);
+                    assertThat(g.getRelatedTo()).isEqualTo(RelatedTo.GROOM);
+                    assertThat(g.getRelationship()).isEqualTo(GuestRelationship.CLOSE_FRIEND);
+                    assertThat(g.getRole().getSlug()).isEqualTo("TEST_ROLE");
+                });
+
+        // Enum columns store the literal name, like rsvp_status (char(1) reads back as a Character).
+        Object storedPriority = em.getEntityManager()
+                .createNativeQuery("SELECT priority FROM guests WHERE name = 'Sam'")
+                .getSingleResult();
+        assertThat(storedPriority).hasToString("A");
+    }
+
+    @Test
     void rsvpStatusIsStoredAsStringLiteral() {
         Project project = persistProject("RSVP Wedding");
         project.addGuest(new Guest("Pat", RsvpStatus.DECLINED, 1));

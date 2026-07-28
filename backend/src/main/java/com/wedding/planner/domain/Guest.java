@@ -51,6 +51,28 @@ public class Guest {
     @Column(name = "table_number")
     private Integer tableNumber;
 
+    // --- Planner-internal classification (never exposed on the public RSVP surface) ---
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "priority", length = 1)
+    private GuestPriority priority;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "related_to", length = 10)
+    private RelatedTo relatedTo;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "relationship", length = 30)
+    private GuestRelationship relationship;
+
+    /** Admin-managed wedding role (Principal Sponsor, Best Man, …); null when unassigned. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(
+            name = "role_id",
+            foreignKey = @ForeignKey(name = "fk_guests_role")
+    )
+    private GuestRole role;
+
     /** Secret token for the public no-login RSVP link. */
     @Column(name = "rsvp_token", nullable = false, unique = true, updatable = false)
     private UUID rsvpToken = UUID.randomUUID();
@@ -131,6 +153,38 @@ public class Guest {
 
     public void setTableNumber(Integer tableNumber) {
         this.tableNumber = tableNumber;
+    }
+
+    public GuestPriority getPriority() {
+        return priority;
+    }
+
+    public void setPriority(GuestPriority priority) {
+        this.priority = priority;
+    }
+
+    public RelatedTo getRelatedTo() {
+        return relatedTo;
+    }
+
+    public void setRelatedTo(RelatedTo relatedTo) {
+        this.relatedTo = relatedTo;
+    }
+
+    public GuestRelationship getRelationship() {
+        return relationship;
+    }
+
+    public void setRelationship(GuestRelationship relationship) {
+        this.relationship = relationship;
+    }
+
+    public GuestRole getRole() {
+        return role;
+    }
+
+    public void setRole(GuestRole role) {
+        this.role = role;
     }
 
     public UUID getRsvpToken() {

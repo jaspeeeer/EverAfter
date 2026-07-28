@@ -23,10 +23,14 @@ public class GuestService {
 
     private final GuestRepository guestRepository;
     private final ProjectRepository projectRepository;
+    private final GuestRoleService guestRoleService;
 
-    public GuestService(GuestRepository guestRepository, ProjectRepository projectRepository) {
+    public GuestService(GuestRepository guestRepository,
+                        ProjectRepository projectRepository,
+                        GuestRoleService guestRoleService) {
         this.guestRepository = guestRepository;
         this.projectRepository = projectRepository;
+        this.guestRoleService = guestRoleService;
     }
 
     @Transactional(readOnly = true)
@@ -69,6 +73,10 @@ public class GuestService {
         guest.setPartySize(request.partySize());
         guest.setDietaryNotes(request.dietaryNotes());
         guest.setTableNumber(request.tableNumber());
+        guest.setPriority(request.priority());
+        guest.setRelatedTo(request.relatedTo());
+        guest.setRelationship(request.relationship());
+        guest.setRole(guestRoleService.requireForAssignmentOrNull(request.roleId()));
         return GuestResponse.from(guest);
     }
 
@@ -78,6 +86,10 @@ public class GuestService {
         guest.setPhone(request.phone());
         guest.setDietaryNotes(request.dietaryNotes());
         guest.setTableNumber(request.tableNumber());
+        guest.setPriority(request.priority());
+        guest.setRelatedTo(request.relatedTo());
+        guest.setRelationship(request.relationship());
+        guest.setRole(guestRoleService.requireForAssignmentOrNull(request.roleId()));
         return guest;
     }
 

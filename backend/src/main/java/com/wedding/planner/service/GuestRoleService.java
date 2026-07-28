@@ -1,0 +1,118 @@
+package com.wedding.planner.service;
+
+import com.wedding.planner.domain.GuestRole;
+import com.wedding.planner.dto.GuestRoleDtos.CreateGuestRoleRequest;
+import com.wedding.planner.dto.GuestRoleDtos.GuestRoleResponse;
+import com.wedding.planner.dto.GuestRoleDtos.UpdateGuestRoleRequest;
+import com.wedding.planner.exception.BadRequestException;
+import com.wedding.planner.exception.ConflictException;
+import com.wedding.planner.exception.ResourceNotFoundException;
+import com.wedding.planner.repository.GuestRepository;
+import com.wedding.planner.repository.GuestRoleRepository;
+import java.util.List;
+import java.util.UUID;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * Admin-managed guest roles. Deleting a role that is still referenced by any guest deactivates it
+ * instead of removing it (kept for existing guests, hidden from new pickers); unreferenced roles
+ * are hard-deleted.
+ */
+@Service
+public class GuestRoleService {
+
+    private final GuestRoleRepository roleRepository;
+    private final GuestRepository guestRepository;
+
+    public GuestRoleService(GuestRoleRepository roleRepository, GuestRepository guestRepository) {
+        this.roleRepository = roleRepository;
+        this.guestRepository = guestRepository;
+    }
+
+    @Transactional(readOnly = true)
+    public List<GuestRoleResponse> listActive() {
+        return roleRepository.findByActiveTrueOrderBySortOrderAsc().stream()
+                .map(GuestRoleResponse::from)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<GuestRoleResponse> listAll() {
+        return roleRepository.findAllByOrderBySortOrderAsc().stream()
+                .map(GuestRoleResponse::from)
+                .toList();
+    }
+
+    @Transactional
+    public GuestRoleResponse create(CreateGuestRoleRequest request) {
+        String name = request.name().trim();
+        if (roleRepository.existsByNameIgnoreCase(name)) {
+            throw new ConflictException("A role named \"" + name + "\" already exists");
+        }
+        int nextOrder = roleRepository.findAll().stream()
+                .mapToInt(GuestRole::getSortOrder)
+                .max()
+                .orElse(-1) + 1;
+        GuestRole role = new GuestRole(name, uniqueSlug(name), nextOrder);
+        return GuestRoleResponse.from(roleRepository.save(role));
+    }
+
+    @Transactional
+    public GuestRoleResponse update(UUID id, UpdateGuestRoleRequest request) {
+        GuestRole role = requireRole(id);
+        String name = request.name().trim();
+        if (!role.getName().equalsIgnoreCase(name)
+                && roleRepository.existsByNameIgnoreCase(name)) {
+            throw new ConflictException("A role named \"" + name + "\" already exists");
+        }
+        role.setName(name);
+        role.setActive(request.active());
+        return GuestRoleResponse.from(role);
+    }
+
+    /** Hard-delete if unreferenced by any guest; otherwise deactivate. */
+    @Transactional
+    public void delete(UUID id) {
+        GuestRole role = requireRole(id);
+        if (guestRepository.countByRoleId(id) > 0) {
+            role.setActive(false);
+        } else {
+            roleRepository.delete(role);
+        }
+    }
+
+    /**
+     * Resolves an optional role id to the entity for guest writes. Null id → null (role is
+     * optional); existence is otherwise required (400 if unknown). The {@code active} flag governs
+     * only what pickers show, so an existing guest whose role was deactivated can still be edited.
+     */
+    @Transactional(readOnly = true)
+    public GuestRole requireForAssignmentOrNull(UUID id) {
+        if (id == null) {
+            return null;
+        }
+        return roleRepository.findById(id)
+                .orElseThrow(() -> new BadRequestException("Unknown role: " + id));
+    }
+
+    private GuestRole requireRole(UUID id) {
+        return roleRepository.findById(id)
+                .orElseThrow(() -> ResourceNotFoundException.of("Guest role", id));
+    }
+
+    private String uniqueSlug(String name) {
+        String base = name.trim().toUpperCase()
+                .replaceAll("[^A-Z0-9]+", "_")
+                .replaceAll("^_+|_+$", "");
+        if (base.isEmpty()) {
+            base = "ROLE";
+        }
+        String slug = base;
+        int suffix = 2;
+        while (roleRepository.findBySlug(slug).isPresent()) {
+            slug = base + "_" + suffix++;
+        }
+        return slug;
+    }
+}

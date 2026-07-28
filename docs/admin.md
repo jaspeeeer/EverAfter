@@ -33,9 +33,11 @@ Linked as cards from `/admin`:
 - `/admin/vendor-directory` — manage the global vendor directory.
 - `/admin/reports` — vendors-by-category, in-demand-vendors, and booking-conversion reports with
   CSV export.
+- `/admin/guest-roles` — manage the guest-role lookup table (see [guests.md](guests.md)).
 
-The last three are covered in [vendor-catalog.md](vendor-catalog.md); each backend endpoint sits
-under `/api/admin/**` (`hasRole('ADMIN')`), and the pages redirect non-admins to `/dashboard`.
+These are covered in [vendor-catalog.md](vendor-catalog.md) and [guests.md](guests.md); each
+backend endpoint sits under `/api/admin/**` (`hasRole('ADMIN')`), and the pages redirect
+non-admins to `/dashboard`.
 
 ## Key files
 

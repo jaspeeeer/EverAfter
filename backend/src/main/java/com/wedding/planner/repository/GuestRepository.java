@@ -13,4 +13,7 @@ public interface GuestRepository extends JpaRepository<Guest, UUID> {
     List<Guest> findByProjectId(UUID projectId);
 
     Optional<Guest> findByRsvpToken(UUID rsvpToken);
+
+    /** Whether any guest references a role — used to gate role deletion. */
+    long countByRoleId(UUID roleId);
 }

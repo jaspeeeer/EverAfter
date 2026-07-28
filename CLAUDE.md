@@ -64,7 +64,11 @@ Public, tokenized endpoints live under `/api/public/**` (permitAll): per-guest R
 ### Database
 Flyway owns the schema (`backend/src/main/resources/db/migration/`); Hibernate runs
 `ddl-auto: validate`. Tables: `roles`, `users`, `user_roles`, `projects`, `tasks`, `vendors`,
-`expenses`, `guests` (+`table_number`, `rsvp_token`), `invitations`, the template catalog
+`expenses`, `guests` (+`table_number`, `rsvp_token`, plus planner-internal classification —
+`priority` char(1) A/B/C, `related_to` GROOM/BRIDE, `relationship` (8 values), all nullable
+enums like `rsvp_status`, `V12` — **never exposed on the public RSVP DTOs**), `guest_roles`
+(admin-managed lookup for `guests.role_id`, same shape as `vendor_categories`, `V12`),
+`invitations`, the template catalog
 (`checklist_templates`/`_items`, `vendor_templates`/`_items` — admin-authored, applied by
 planners; see `docs/templates.md`), the wedding-day timeline (`timeline_events` +
 `timeline_event_vendors` M2M with DB-level `ON DELETE CASCADE`; times before 04:00 sort as
