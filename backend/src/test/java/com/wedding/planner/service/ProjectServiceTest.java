@@ -7,6 +7,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.wedding.planner.audit.ActivityLogService;
 import com.wedding.planner.domain.Project;
 import com.wedding.planner.domain.User;
 import com.wedding.planner.dto.ProjectRequest;
@@ -36,6 +37,9 @@ class ProjectServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private ActivityLogService activityLog;
 
     @InjectMocks
     private ProjectService projectService;

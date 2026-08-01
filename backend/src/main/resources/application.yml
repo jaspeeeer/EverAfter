@@ -47,6 +47,11 @@ logging:
 
 # Application-specific settings.
 app:
+  # Daily in-app notifications generator (see notification.ReminderScheduler).
+  notifications:
+    enabled: ${APP_NOTIFICATIONS_ENABLED:true}
+    # UTC hour to run the reminder sweep. Default 01:00 UTC == ~09:00 PHT.
+    run-hour-utc: ${APP_NOTIFICATIONS_RUN_HOUR_UTC:1}
   jwt:
     # HS256 signing secret. Override in real environments via APP_JWT_SECRET.
     # Must be at least 32 bytes for HS256.

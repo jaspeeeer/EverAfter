@@ -1,5 +1,8 @@
 package com.wedding.planner.service;
 
+import com.wedding.planner.audit.ActivityLogService;
+import com.wedding.planner.domain.ActivityAction;
+import com.wedding.planner.domain.ActivityEntityType;
 import com.wedding.planner.domain.Project;
 import com.wedding.planner.domain.User;
 import com.wedding.planner.dto.ProjectRequest;
@@ -29,10 +32,13 @@ public class ProjectService {
 
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
+    private final ActivityLogService activityLog;
 
-    public ProjectService(ProjectRepository projectRepository, UserRepository userRepository) {
+    public ProjectService(ProjectRepository projectRepository, UserRepository userRepository,
+                          ActivityLogService activityLog) {
         this.projectRepository = projectRepository;
         this.userRepository = userRepository;
+        this.activityLog = activityLog;
     }
 
     @Transactional
@@ -44,7 +50,10 @@ public class ProjectService {
         project.setTotalBudget(request.totalBudget());
         attachOwnerIfPresent(project, request.ownerEmail());
 
-        return ProjectResponse.from(projectRepository.save(project));
+        Project saved = projectRepository.save(project);
+        activityLog.record(saved.getId(), ActivityEntityType.PROJECT, saved.getId(),
+                ActivityAction.CREATE, "Created project \"" + saved.getName() + "\"");
+        return ProjectResponse.from(saved);
     }
 
     @Transactional(readOnly = true)
@@ -74,12 +83,16 @@ public class ProjectService {
         project.setName(request.name());
         project.setWeddingDate(request.weddingDate());
         project.setTotalBudget(request.totalBudget());
+        activityLog.record(projectId, ActivityEntityType.PROJECT, projectId,
+                ActivityAction.UPDATE, "Updated project details");
         return ProjectResponse.from(project);
     }
 
     @Transactional
     public void delete(UUID projectId) {
         Project project = findProject(projectId);
+        // Log BEFORE the delete: the FK is ON DELETE CASCADE, so the row disappears with the
+        // project. Recording the delete for its own log-of-record is intentionally moot.
         projectRepository.delete(project);
     }
 

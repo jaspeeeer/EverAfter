@@ -1,5 +1,8 @@
 package com.wedding.planner.service;
 
+import com.wedding.planner.audit.ActivityLogService;
+import com.wedding.planner.domain.ActivityAction;
+import com.wedding.planner.domain.ActivityEntityType;
 import com.wedding.planner.domain.Expense;
 import com.wedding.planner.domain.Project;
 import com.wedding.planner.domain.Vendor;
@@ -28,15 +31,18 @@ public class ExpenseService {
     private final ProjectRepository projectRepository;
     private final VendorCategoryService vendorCategoryService;
     private final VendorRepository vendorRepository;
+    private final ActivityLogService activityLog;
 
     public ExpenseService(ExpenseRepository expenseRepository,
                           ProjectRepository projectRepository,
                           VendorCategoryService vendorCategoryService,
-                          VendorRepository vendorRepository) {
+                          VendorRepository vendorRepository,
+                          ActivityLogService activityLog) {
         this.expenseRepository = expenseRepository;
         this.projectRepository = projectRepository;
         this.vendorCategoryService = vendorCategoryService;
         this.vendorRepository = vendorRepository;
+        this.activityLog = activityLog;
     }
 
     @Transactional(readOnly = true)
@@ -56,7 +62,11 @@ public class ExpenseService {
         expense.setPaidAmount(request.paid() ? request.amount() : BigDecimal.ZERO);
         expense.setProject(project);
         expense.setVendor(resolveVendor(projectId, request.vendorId()));
-        return ExpenseResponse.from(expenseRepository.save(expense));
+        Expense saved = expenseRepository.save(expense);
+        activityLog.record(projectId, ActivityEntityType.EXPENSE, saved.getId(),
+                ActivityAction.CREATE,
+                "Added expense \"" + saved.getDescription() + "\" (" + saved.getAmount() + ")");
+        return ExpenseResponse.from(saved);
     }
 
     @Transactional
@@ -72,6 +82,8 @@ public class ExpenseService {
         expense.setVendor(resolveVendor(projectId, request.vendorId()));
         expense.setPaid(request.paid());
         expense.setPaidAmount(request.paid() ? request.amount() : BigDecimal.ZERO);
+        activityLog.record(projectId, ActivityEntityType.EXPENSE, expenseId,
+                ActivityAction.UPDATE, "Updated expense \"" + expense.getDescription() + "\"");
         return ExpenseResponse.from(expense);
     }
 
@@ -82,7 +94,10 @@ public class ExpenseService {
             throw new BadRequestException(
                     "This line is from a vendor's agreed price — clear it on the vendor instead");
         }
+        String description = expense.getDescription();
         expenseRepository.delete(expense);
+        activityLog.record(projectId, ActivityEntityType.EXPENSE, expenseId,
+                ActivityAction.DELETE, "Deleted expense \"" + description + "\"");
     }
 
     /** Resolves an optional vendor mapping, verifying the vendor belongs to this project. */

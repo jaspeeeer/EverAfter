@@ -1,5 +1,8 @@
 package com.wedding.planner.service;
 
+import com.wedding.planner.audit.ActivityLogService;
+import com.wedding.planner.domain.ActivityAction;
+import com.wedding.planner.domain.ActivityEntityType;
 import com.wedding.planner.domain.Project;
 import com.wedding.planner.domain.TimelineEvent;
 import com.wedding.planner.domain.Vendor;
@@ -35,13 +38,16 @@ public class TimelineService {
     private final TimelineEventRepository timelineEventRepository;
     private final ProjectRepository projectRepository;
     private final VendorRepository vendorRepository;
+    private final ActivityLogService activityLog;
 
     public TimelineService(TimelineEventRepository timelineEventRepository,
                            ProjectRepository projectRepository,
-                           VendorRepository vendorRepository) {
+                           VendorRepository vendorRepository,
+                           ActivityLogService activityLog) {
         this.timelineEventRepository = timelineEventRepository;
         this.projectRepository = projectRepository;
         this.vendorRepository = vendorRepository;
+        this.activityLog = activityLog;
     }
 
     /** Minutes-from-day-start used for ordering, where the day wraps at the early-morning cutoff. */
@@ -67,7 +73,11 @@ public class TimelineService {
         TimelineEvent event = new TimelineEvent(request.title(), request.startTime());
         applyRequest(event, request, projectId);
         event.setProject(project);
-        return TimelineEventResponse.from(timelineEventRepository.save(event));
+        TimelineEvent saved = timelineEventRepository.save(event);
+        activityLog.record(projectId, ActivityEntityType.TIMELINE_EVENT, saved.getId(),
+                ActivityAction.CREATE,
+                "Added timeline event \"" + saved.getTitle() + "\" at " + saved.getStartTime());
+        return TimelineEventResponse.from(saved);
     }
 
     @Transactional
@@ -77,12 +87,18 @@ public class TimelineService {
         event.setTitle(request.title());
         event.setStartTime(request.startTime());
         applyRequest(event, request, projectId);
+        activityLog.record(projectId, ActivityEntityType.TIMELINE_EVENT, eventId,
+                ActivityAction.UPDATE, "Updated timeline event \"" + event.getTitle() + "\"");
         return TimelineEventResponse.from(event);
     }
 
     @Transactional
     public void delete(UUID projectId, UUID eventId) {
-        timelineEventRepository.delete(requireEventInProject(projectId, eventId));
+        TimelineEvent event = requireEventInProject(projectId, eventId);
+        String title = event.getTitle();
+        timelineEventRepository.delete(event);
+        activityLog.record(projectId, ActivityEntityType.TIMELINE_EVENT, eventId,
+                ActivityAction.DELETE, "Deleted timeline event \"" + title + "\"");
     }
 
     /**
@@ -122,9 +138,10 @@ public class TimelineService {
                 })
                 .toList();
 
-        return timelineEventRepository.saveAll(events).stream()
-                .map(TimelineEventResponse::from)
-                .toList();
+        List<TimelineEvent> saved = timelineEventRepository.saveAll(events);
+        activityLog.record(projectId, ActivityEntityType.TIMELINE_EVENT, null,
+                ActivityAction.CREATE, "Applied typical wedding-day timeline (" + saved.size() + " events)");
+        return saved.stream().map(TimelineEventResponse::from).toList();
     }
 
     /** Shared field mapping + the cross-tenant supplier guard. */

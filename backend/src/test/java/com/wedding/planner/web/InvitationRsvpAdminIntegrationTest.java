@@ -151,23 +151,23 @@ class InvitationRsvpAdminIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.guestName").value("Alex & Jamie"))
                 .andExpect(jsonPath("$.projectName").value("RSVP Wedding"));
 
-        // Unauthenticated respond.
+        // Unauthenticated respond. Party size is deliberately absent from the request — the
+        // server always resets it to 1 on public RSVP (regardless of what the planner had set).
         mockMvc.perform(put("/api/public/rsvp/" + rsvpToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "rsvpStatus", "ATTENDING",
-                                "partySize", 3,
                                 "dietaryNotes", "1 vegan"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.rsvpStatus").value("ATTENDING"))
-                .andExpect(jsonPath("$.partySize").value(3));
+                .andExpect(jsonPath("$.partySize").value(1));
 
-        // The change is visible to the planner.
+        // The change is visible to the planner — party size reset from the initial 2 to 1.
         mockMvc.perform(get("/api/projects/" + projectId + "/guests")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].rsvpStatus").value("ATTENDING"))
-                .andExpect(jsonPath("$[0].partySize").value(3));
+                .andExpect(jsonPath("$[0].partySize").value(1));
     }
 
     @Test

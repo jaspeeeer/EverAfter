@@ -1,5 +1,8 @@
 package com.wedding.planner.service;
 
+import com.wedding.planner.audit.ActivityLogService;
+import com.wedding.planner.domain.ActivityAction;
+import com.wedding.planner.domain.ActivityEntityType;
 import com.wedding.planner.domain.Invitation;
 import com.wedding.planner.domain.InvitationStatus;
 import com.wedding.planner.domain.Project;
@@ -25,11 +28,14 @@ public class InvitationService {
 
     private final InvitationRepository invitationRepository;
     private final ProjectRepository projectRepository;
+    private final ActivityLogService activityLog;
 
     public InvitationService(InvitationRepository invitationRepository,
-                             ProjectRepository projectRepository) {
+                             ProjectRepository projectRepository,
+                             ActivityLogService activityLog) {
         this.invitationRepository = invitationRepository;
         this.projectRepository = projectRepository;
+        this.activityLog = activityLog;
     }
 
     @Transactional
@@ -40,7 +46,10 @@ public class InvitationService {
             throw new BadRequestException("This project already has an owning couple");
         }
         Invitation invitation = new Invitation(request.email().trim().toLowerCase(), project);
-        return InvitationResponse.from(invitationRepository.save(invitation));
+        Invitation saved = invitationRepository.save(invitation);
+        activityLog.record(projectId, ActivityEntityType.INVITATION, saved.getId(),
+                ActivityAction.CREATE, "Invited couple " + saved.getEmail());
+        return InvitationResponse.from(saved);
     }
 
     @Transactional(readOnly = true)
@@ -75,6 +84,8 @@ public class InvitationService {
         }
         project.setOwner(couple);
         invitation.accept();
+        activityLog.record(project.getId(), ActivityEntityType.PROJECT, project.getId(),
+                ActivityAction.UPDATE, "Couple " + couple.getEmail() + " accepted planner invitation");
     }
 
     private Invitation requireByToken(UUID token) {

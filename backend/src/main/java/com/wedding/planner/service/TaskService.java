@@ -1,5 +1,8 @@
 package com.wedding.planner.service;
 
+import com.wedding.planner.audit.ActivityLogService;
+import com.wedding.planner.domain.ActivityAction;
+import com.wedding.planner.domain.ActivityEntityType;
 import com.wedding.planner.domain.Project;
 import com.wedding.planner.domain.Task;
 import com.wedding.planner.dto.TaskRequest;
@@ -22,10 +25,13 @@ public class TaskService {
 
     private final TaskRepository taskRepository;
     private final ProjectRepository projectRepository;
+    private final ActivityLogService activityLog;
 
-    public TaskService(TaskRepository taskRepository, ProjectRepository projectRepository) {
+    public TaskService(TaskRepository taskRepository, ProjectRepository projectRepository,
+                       ActivityLogService activityLog) {
         this.taskRepository = taskRepository;
         this.projectRepository = projectRepository;
+        this.activityLog = activityLog;
     }
 
     @Transactional(readOnly = true)
@@ -43,23 +49,41 @@ public class TaskService {
         task.setDescription(request.description());
         task.setDueDate(request.dueDate());
         task.setProject(project);
-        return TaskResponse.from(taskRepository.save(task));
+        Task saved = taskRepository.save(task);
+        activityLog.record(projectId, ActivityEntityType.TASK, saved.getId(),
+                ActivityAction.CREATE, "Added task \"" + saved.getTitle() + "\"");
+        return TaskResponse.from(saved);
     }
 
     @Transactional
     public TaskResponse update(UUID projectId, UUID taskId, TaskRequest request) {
         Task task = requireTaskInProject(projectId, taskId);
+        boolean statusChanged = task.getStatus() != request.status();
+        boolean titleChanged = !task.getTitle().equals(request.title());
         task.setTitle(request.title());
         task.setDescription(request.description());
         task.setStatus(request.status());
         task.setDueDate(request.dueDate());
+        String summary;
+        if (statusChanged && !titleChanged) {
+            summary = "Moved task \"" + task.getTitle() + "\" to " + task.getStatus().name();
+        } else if (titleChanged) {
+            summary = "Renamed task to \"" + task.getTitle() + "\"";
+        } else {
+            summary = "Updated task \"" + task.getTitle() + "\"";
+        }
+        activityLog.record(projectId, ActivityEntityType.TASK, taskId,
+                ActivityAction.UPDATE, summary);
         return TaskResponse.from(task);
     }
 
     @Transactional
     public void delete(UUID projectId, UUID taskId) {
         Task task = requireTaskInProject(projectId, taskId);
+        String title = task.getTitle();
         taskRepository.delete(task);
+        activityLog.record(projectId, ActivityEntityType.TASK, taskId,
+                ActivityAction.DELETE, "Deleted task \"" + title + "\"");
     }
 
     private Project requireProject(UUID projectId) {

@@ -16,7 +16,9 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * A single payment (installment) made against a vendor's agreed price.
+ * A single installment against a vendor's agreed price. May be already paid ({@code paid = true},
+ * {@code paidOn} set) or planned ({@code paid = false}, {@code dueDate} set, {@code paidOn} null).
+ * The DB check constraint {@code chk_vendor_payment_state} enforces this invariant.
  */
 @Entity
 @Table(name = "vendor_payments")
@@ -38,8 +40,16 @@ public class VendorPayment {
     @Column(name = "amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal amount;
 
-    @Column(name = "paid_on", nullable = false)
+    /** Null when the installment is still planned. */
+    @Column(name = "paid_on")
     private LocalDate paidOn;
+
+    /** Required when planned; may be null once the payment has been recorded. */
+    @Column(name = "due_date")
+    private LocalDate dueDate;
+
+    @Column(name = "paid", nullable = false)
+    private boolean paid = true;
 
     @Column(name = "note", length = 255)
     private String note;
@@ -48,11 +58,32 @@ public class VendorPayment {
         // Required by JPA.
     }
 
-    public VendorPayment(Vendor vendor, BigDecimal amount, LocalDate paidOn, String note) {
-        this.vendor = vendor;
-        this.amount = amount;
+    /** Factory: a payment already recorded on {@code paidOn}. */
+    public static VendorPayment recorded(Vendor vendor, BigDecimal amount, LocalDate paidOn, String note) {
+        VendorPayment p = new VendorPayment();
+        p.vendor = vendor;
+        p.amount = amount;
+        p.paidOn = paidOn;
+        p.paid = true;
+        p.note = note;
+        return p;
+    }
+
+    /** Factory: a planned installment with a due date. */
+    public static VendorPayment planned(Vendor vendor, BigDecimal amount, LocalDate dueDate, String note) {
+        VendorPayment p = new VendorPayment();
+        p.vendor = vendor;
+        p.amount = amount;
+        p.dueDate = dueDate;
+        p.paid = false;
+        p.note = note;
+        return p;
+    }
+
+    /** Flip a planned installment to paid on the given date. */
+    public void markPaid(LocalDate paidOn) {
+        this.paid = true;
         this.paidOn = paidOn;
-        this.note = note;
     }
 
     public UUID getId() {
@@ -77,6 +108,18 @@ public class VendorPayment {
 
     public void setPaidOn(LocalDate paidOn) {
         this.paidOn = paidOn;
+    }
+
+    public LocalDate getDueDate() {
+        return dueDate;
+    }
+
+    public void setDueDate(LocalDate dueDate) {
+        this.dueDate = dueDate;
+    }
+
+    public boolean isPaid() {
+        return paid;
     }
 
     public String getNote() {

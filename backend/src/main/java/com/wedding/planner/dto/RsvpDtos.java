@@ -2,7 +2,6 @@ package com.wedding.planner.dto;
 
 import com.wedding.planner.domain.Guest;
 import com.wedding.planner.domain.RsvpStatus;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
 
@@ -32,10 +31,13 @@ public final class RsvpDtos {
         }
     }
 
-    /** Fields an invitee may update about themselves. */
+    /**
+     * Fields an invitee may update about themselves. Party size is deliberately not here — the
+     * server always resets it to 1 on public submission; planners manage headcount via the
+     * admin-side guest editor.
+     */
     public record RsvpUpdateRequest(
             @NotNull RsvpStatus rsvpStatus,
-            @Min(1) int partySize,
             String dietaryNotes) {
     }
 }

@@ -2,6 +2,7 @@ package com.wedding.planner.web;
 
 import com.wedding.planner.dto.TemplateDtos.ApplyTemplateRequest;
 import com.wedding.planner.dto.VendorDirectoryDtos.AddFromDirectoryRequest;
+import com.wedding.planner.dto.VendorPaymentDtos.MarkPaymentPaidRequest;
 import com.wedding.planner.dto.VendorPaymentDtos.VendorPaymentRequest;
 import com.wedding.planner.dto.VendorPaymentDtos.VendorPaymentResponse;
 import com.wedding.planner.dto.VendorRequest;
@@ -106,6 +107,16 @@ public class VendorController {
             @Valid @RequestBody VendorPaymentRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(vendorService.addPayment(projectId, vendorId, request));
+    }
+
+    /** Marks a previously planned installment as paid. */
+    @PostMapping("/{vendorId}/payments/{paymentId}/mark-paid")
+    @PreAuthorize("@projectSecurity.canAccess(#projectId, authentication)")
+    public VendorPaymentResponse markPaymentPaid(@PathVariable UUID projectId,
+                                                 @PathVariable UUID vendorId,
+                                                 @PathVariable UUID paymentId,
+                                                 @Valid @RequestBody MarkPaymentPaidRequest request) {
+        return vendorService.markPaymentPaid(projectId, vendorId, paymentId, request);
     }
 
     @DeleteMapping("/{vendorId}/payments/{paymentId}")

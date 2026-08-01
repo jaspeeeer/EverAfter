@@ -1,5 +1,8 @@
 package com.wedding.planner.service;
 
+import com.wedding.planner.audit.ActivityLogService;
+import com.wedding.planner.domain.ActivityAction;
+import com.wedding.planner.domain.ActivityEntityType;
 import com.wedding.planner.domain.ChecklistTemplate;
 import com.wedding.planner.domain.ChecklistTemplateItem;
 import com.wedding.planner.domain.Project;
@@ -40,19 +43,22 @@ public class TemplateService {
     private final TaskRepository taskRepository;
     private final VendorRepository vendorRepository;
     private final VendorCategoryService vendorCategoryService;
+    private final ActivityLogService activityLog;
 
     public TemplateService(ChecklistTemplateRepository checklistTemplateRepository,
                            VendorTemplateRepository vendorTemplateRepository,
                            ProjectRepository projectRepository,
                            TaskRepository taskRepository,
                            VendorRepository vendorRepository,
-                           VendorCategoryService vendorCategoryService) {
+                           VendorCategoryService vendorCategoryService,
+                           ActivityLogService activityLog) {
         this.checklistTemplateRepository = checklistTemplateRepository;
         this.vendorTemplateRepository = vendorTemplateRepository;
         this.projectRepository = projectRepository;
         this.taskRepository = taskRepository;
         this.vendorRepository = vendorRepository;
         this.vendorCategoryService = vendorCategoryService;
+        this.activityLog = activityLog;
     }
 
     // --- Checklist template CRUD ---
@@ -149,7 +155,10 @@ public class TemplateService {
                 })
                 .toList();
 
-        return taskRepository.saveAll(tasks).stream().map(TaskResponse::from).toList();
+        List<Task> saved = taskRepository.saveAll(tasks);
+        activityLog.record(projectId, ActivityEntityType.TASK, null, ActivityAction.CREATE,
+                "Applied checklist template \"" + template.getName() + "\" (" + saved.size() + " tasks)");
+        return saved.stream().map(TaskResponse::from).toList();
     }
 
     /** Creates one unbooked vendor slot per template item. */
@@ -166,7 +175,10 @@ public class TemplateService {
                 })
                 .toList();
 
-        return vendorRepository.saveAll(vendors).stream().map(VendorResponse::from).toList();
+        List<Vendor> saved = vendorRepository.saveAll(vendors);
+        activityLog.record(projectId, ActivityEntityType.VENDOR, null, ActivityAction.CREATE,
+                "Applied vendor template \"" + template.getName() + "\" (" + saved.size() + " vendors)");
+        return saved.stream().map(VendorResponse::from).toList();
     }
 
     // --- helpers ---

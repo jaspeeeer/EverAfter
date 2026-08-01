@@ -1,5 +1,8 @@
 package com.wedding.planner.service;
 
+import com.wedding.planner.audit.ActivityLogService;
+import com.wedding.planner.domain.ActivityAction;
+import com.wedding.planner.domain.ActivityEntityType;
 import com.wedding.planner.domain.Guest;
 import com.wedding.planner.domain.Project;
 import com.wedding.planner.dto.GuestRequest;
@@ -24,13 +27,16 @@ public class GuestService {
     private final GuestRepository guestRepository;
     private final ProjectRepository projectRepository;
     private final GuestRoleService guestRoleService;
+    private final ActivityLogService activityLog;
 
     public GuestService(GuestRepository guestRepository,
                         ProjectRepository projectRepository,
-                        GuestRoleService guestRoleService) {
+                        GuestRoleService guestRoleService,
+                        ActivityLogService activityLog) {
         this.guestRepository = guestRepository;
         this.projectRepository = projectRepository;
         this.guestRoleService = guestRoleService;
+        this.activityLog = activityLog;
     }
 
     @Transactional(readOnly = true)
@@ -46,7 +52,10 @@ public class GuestService {
         Project project = requireProject(projectId);
         Guest guest = fromRequest(request);
         guest.setProject(project);
-        return GuestResponse.from(guestRepository.save(guest));
+        Guest saved = guestRepository.save(guest);
+        activityLog.record(projectId, ActivityEntityType.GUEST, saved.getId(),
+                ActivityAction.CREATE, "Added guest \"" + saved.getName() + "\"");
+        return GuestResponse.from(saved);
     }
 
     /** Bulk create (CSV import). Validated per row by the controller; all-or-nothing. */
@@ -60,12 +69,17 @@ public class GuestService {
                     return guest;
                 })
                 .toList();
-        return guestRepository.saveAll(guests).stream().map(GuestResponse::from).toList();
+        List<Guest> saved = guestRepository.saveAll(guests);
+        // Batch import → one log row, not one per guest, to avoid feed noise.
+        activityLog.record(projectId, ActivityEntityType.GUEST, null,
+                ActivityAction.CREATE, "Imported " + saved.size() + " guests");
+        return saved.stream().map(GuestResponse::from).toList();
     }
 
     @Transactional
     public GuestResponse update(UUID projectId, UUID guestId, GuestRequest request) {
         Guest guest = requireGuestInProject(projectId, guestId);
+        boolean rsvpChanged = guest.getRsvpStatus() != request.rsvpStatus();
         guest.setName(request.name());
         guest.setEmail(request.email());
         guest.setPhone(request.phone());
@@ -77,6 +91,11 @@ public class GuestService {
         guest.setRelatedTo(request.relatedTo());
         guest.setRelationship(request.relationship());
         guest.setRole(guestRoleService.requireForAssignmentOrNull(request.roleId()));
+        String summary = rsvpChanged
+                ? "Marked \"" + guest.getName() + "\" as " + guest.getRsvpStatus().name()
+                : "Updated guest \"" + guest.getName() + "\"";
+        activityLog.record(projectId, ActivityEntityType.GUEST, guestId,
+                ActivityAction.UPDATE, summary);
         return GuestResponse.from(guest);
     }
 
@@ -96,7 +115,10 @@ public class GuestService {
     @Transactional
     public void delete(UUID projectId, UUID guestId) {
         Guest guest = requireGuestInProject(projectId, guestId);
+        String name = guest.getName();
         guestRepository.delete(guest);
+        activityLog.record(projectId, ActivityEntityType.GUEST, guestId,
+                ActivityAction.DELETE, "Deleted guest \"" + name + "\"");
     }
 
     // --- Public RSVP (token-authenticated, no login) ---
@@ -111,7 +133,8 @@ public class GuestService {
     public RsvpViewResponse respondByRsvpToken(UUID token, RsvpUpdateRequest request) {
         Guest guest = requireByRsvpToken(token);
         guest.setRsvpStatus(request.rsvpStatus());
-        guest.setPartySize(request.partySize());
+        // Party size is server-authoritative on the public form; guests don't get to set it.
+        guest.setPartySize(1);
         guest.setDietaryNotes(request.dietaryNotes());
         return RsvpViewResponse.from(guest);
     }

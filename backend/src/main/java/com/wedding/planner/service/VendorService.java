@@ -1,11 +1,15 @@
 package com.wedding.planner.service;
 
+import com.wedding.planner.audit.ActivityLogService;
+import com.wedding.planner.domain.ActivityAction;
+import com.wedding.planner.domain.ActivityEntityType;
 import com.wedding.planner.domain.Expense;
 import com.wedding.planner.domain.Project;
 import com.wedding.planner.domain.Vendor;
 import com.wedding.planner.domain.VendorCategory;
 import com.wedding.planner.domain.VendorDirectoryEntry;
 import com.wedding.planner.domain.VendorPayment;
+import com.wedding.planner.dto.VendorPaymentDtos.MarkPaymentPaidRequest;
 import com.wedding.planner.dto.VendorPaymentDtos.VendorPaymentRequest;
 import com.wedding.planner.dto.VendorPaymentDtos.VendorPaymentResponse;
 import com.wedding.planner.dto.VendorRequest;
@@ -40,26 +44,29 @@ public class VendorService {
     private final VendorDirectoryRepository directoryRepository;
     private final ExpenseRepository expenseRepository;
     private final VendorPaymentRepository paymentRepository;
+    private final ActivityLogService activityLog;
 
     public VendorService(VendorRepository vendorRepository,
                          ProjectRepository projectRepository,
                          VendorCategoryService vendorCategoryService,
                          VendorDirectoryRepository directoryRepository,
                          ExpenseRepository expenseRepository,
-                         VendorPaymentRepository paymentRepository) {
+                         VendorPaymentRepository paymentRepository,
+                         ActivityLogService activityLog) {
         this.vendorRepository = vendorRepository;
         this.projectRepository = projectRepository;
         this.vendorCategoryService = vendorCategoryService;
         this.directoryRepository = directoryRepository;
         this.expenseRepository = expenseRepository;
         this.paymentRepository = paymentRepository;
+        this.activityLog = activityLog;
     }
 
     @Transactional(readOnly = true)
     public List<VendorResponse> list(UUID projectId) {
         requireProject(projectId);
         Map<UUID, BigDecimal> paidByVendor = new HashMap<>();
-        for (Object[] row : paymentRepository.sumByProjectGroupedByVendor(projectId)) {
+        for (Object[] row : paymentRepository.sumPaidByProjectGroupedByVendor(projectId)) {
             paidByVendor.put((UUID) row[0], (BigDecimal) row[1]);
         }
         return vendorRepository.findByProjectIdWithCategory(projectId).stream()
@@ -82,6 +89,8 @@ public class VendorService {
         vendor.setProject(project);
         Vendor saved = vendorRepository.save(vendor);
         syncVendorExpense(saved);
+        activityLog.record(projectId, ActivityEntityType.VENDOR, saved.getId(),
+                ActivityAction.CREATE, "Added vendor \"" + saved.getName() + "\"");
         return VendorResponse.from(saved);
     }
 
@@ -102,17 +111,22 @@ public class VendorService {
         vendor.setParent(parent);
         vendor.setAgreedPrice(parent == null ? request.agreedPrice() : null);
         syncVendorExpense(vendor);
-        return VendorResponse.from(vendor, paymentRepository.sumByVendorId(vendor.getId()));
+        activityLog.record(projectId, ActivityEntityType.VENDOR, vendor.getId(),
+                ActivityAction.UPDATE, "Updated vendor \"" + vendor.getName() + "\"");
+        return VendorResponse.from(vendor, paymentRepository.sumPaidByVendorId(vendor.getId()));
     }
 
     @Transactional
     public void delete(UUID projectId, UUID vendorId) {
         Vendor vendor = requireVendorInProject(projectId, vendorId);
+        String name = vendor.getName();
         // Remove the system-owned agreed-price line explicitly; any manual vendor mappings are
         // left in place (the FK is ON DELETE SET NULL, so they simply unmap).
         expenseRepository.findByVendorIdAndManagedTrue(vendorId)
                 .ifPresent(expenseRepository::delete);
         vendorRepository.delete(vendor);
+        activityLog.record(projectId, ActivityEntityType.VENDOR, vendorId,
+                ActivityAction.DELETE, "Deleted vendor \"" + name + "\"");
     }
 
     /** Copies a directory entry into this project as a new vendor and keeps the link. */
@@ -127,7 +141,10 @@ public class VendorService {
         vendor.setDirectoryEntry(entry);
         vendor.setProject(project);
         // No agreed price yet — the planner sets that when the deal is done.
-        return VendorResponse.from(vendorRepository.save(vendor));
+        Vendor saved = vendorRepository.save(vendor);
+        activityLog.record(projectId, ActivityEntityType.VENDOR, saved.getId(),
+                ActivityAction.CREATE, "Added vendor \"" + saved.getName() + "\" from directory");
+        return VendorResponse.from(saved);
     }
 
     /**
@@ -156,7 +173,7 @@ public class VendorService {
         // Expenses and vendors share one category lookup, so reuse the vendor's category directly.
         expense.setCategory(vendor.getCategory());
         // Payments drive how much of this line is paid (capped at the full amount).
-        BigDecimal paid = paymentRepository.sumByVendorId(vendor.getId()).min(vendor.getAgreedPrice());
+        BigDecimal paid = paymentRepository.sumPaidByVendorId(vendor.getId()).min(vendor.getAgreedPrice());
         expense.setPaidAmount(paid);
         expense.setPaid(paid.compareTo(vendor.getAgreedPrice()) >= 0);
         expenseRepository.save(expense);
@@ -167,7 +184,7 @@ public class VendorService {
     @Transactional(readOnly = true)
     public List<VendorPaymentResponse> listPayments(UUID projectId, UUID vendorId) {
         requireVendorInProject(projectId, vendorId);
-        return paymentRepository.findByVendorIdOrderByPaidOnAscIdAsc(vendorId).stream()
+        return paymentRepository.findByVendorIdChronological(vendorId).stream()
                 .map(VendorPaymentResponse::from)
                 .toList();
     }
@@ -182,26 +199,73 @@ public class VendorService {
         if (vendor.getAgreedPrice() == null) {
             throw new BadRequestException("Set the vendor's full amount before recording a payment");
         }
-        BigDecimal balance = vendor.getAgreedPrice().subtract(paymentRepository.sumByVendorId(vendorId));
-        if (request.amount().compareTo(balance) > 0) {
-            throw new BadRequestException("Payment exceeds the remaining balance");
+        boolean paid = request.isPaid();
+        if (paid && request.paidOn() == null) {
+            throw new BadRequestException("A recorded payment needs paidOn");
         }
-        VendorPayment payment = paymentRepository.save(
-                new VendorPayment(vendor, request.amount(), request.paidOn(), request.note()));
+        if (!paid && request.dueDate() == null) {
+            throw new BadRequestException("A planned installment needs a due date");
+        }
+        // Balance = agreed price - already-PAID sum. Planned rows shouldn't reduce headroom for
+        // recording new paid payments, but should be counted against agreed for future planning.
+        // Simplification for MVP: constrain paid + planned totals to the agreed price.
+        BigDecimal totalScheduled = paymentRepository.findByVendorIdChronological(vendorId).stream()
+                .map(VendorPayment::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal remaining = vendor.getAgreedPrice().subtract(totalScheduled);
+        if (request.amount().compareTo(remaining) > 0) {
+            throw new BadRequestException("Amount exceeds the remaining balance for this vendor");
+        }
+        VendorPayment payment = paid
+                ? VendorPayment.recorded(vendor, request.amount(), request.paidOn(), request.note())
+                : VendorPayment.planned(vendor, request.amount(), request.dueDate(), request.note());
+        VendorPayment saved = paymentRepository.save(payment);
         syncVendorExpense(vendor);
+        String summary = paid
+                ? "Recorded " + saved.getAmount() + " payment to \"" + vendor.getName() + "\""
+                : "Scheduled " + saved.getAmount() + " payment to \"" + vendor.getName()
+                        + "\" due " + saved.getDueDate();
+        activityLog.record(projectId, ActivityEntityType.VENDOR_PAYMENT, saved.getId(),
+                ActivityAction.CREATE, summary);
+        return VendorPaymentResponse.from(saved);
+    }
+
+    /** Flips a planned installment to paid on the given date. */
+    @Transactional
+    public VendorPaymentResponse markPaymentPaid(UUID projectId, UUID vendorId, UUID paymentId,
+                                                 MarkPaymentPaidRequest request) {
+        Vendor vendor = requireVendorInProject(projectId, vendorId);
+        VendorPayment payment = requirePaymentOfVendor(vendorId, paymentId);
+        if (payment.isPaid()) {
+            throw new BadRequestException("Payment is already recorded as paid");
+        }
+        payment.markPaid(request.paidOn());
+        syncVendorExpense(vendor);
+        activityLog.record(projectId, ActivityEntityType.VENDOR_PAYMENT, paymentId,
+                ActivityAction.UPDATE,
+                "Marked " + payment.getAmount() + " to \"" + vendor.getName() + "\" as paid");
         return VendorPaymentResponse.from(payment);
     }
 
     @Transactional
     public void deletePayment(UUID projectId, UUID vendorId, UUID paymentId) {
         Vendor vendor = requireVendorInProject(projectId, vendorId);
+        VendorPayment payment = requirePaymentOfVendor(vendorId, paymentId);
+        var amount = payment.getAmount();
+        paymentRepository.delete(payment);
+        syncVendorExpense(vendor);
+        activityLog.record(projectId, ActivityEntityType.VENDOR_PAYMENT, paymentId,
+                ActivityAction.DELETE,
+                "Removed " + amount + " payment for \"" + vendor.getName() + "\"");
+    }
+
+    private VendorPayment requirePaymentOfVendor(UUID vendorId, UUID paymentId) {
         VendorPayment payment = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> ResourceNotFoundException.of("Vendor payment", paymentId));
         if (!payment.getVendor().getId().equals(vendorId)) {
             throw ResourceNotFoundException.of("Vendor payment", paymentId);
         }
-        paymentRepository.delete(payment);
-        syncVendorExpense(vendor);
+        return payment;
     }
 
     /**
