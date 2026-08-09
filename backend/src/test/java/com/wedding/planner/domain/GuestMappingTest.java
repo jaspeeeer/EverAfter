@@ -28,7 +28,8 @@ class GuestMappingTest extends AbstractPostgresContainerTest {
     @Test
     void persistsGuestUnderProject() {
         Project project = persistProject("Guest Wedding");
-        Guest guest = new Guest("Alex & Jamie", RsvpStatus.ATTENDING, 2);
+        Guest guest = new Guest("Alex", RsvpStatus.ATTENDING, 2);
+        guest.setLastName("Jamie");
         guest.setEmail("alex@example.test");
         guest.setDietaryNotes("Vegetarian");
         project.addGuest(guest);
@@ -39,7 +40,7 @@ class GuestMappingTest extends AbstractPostgresContainerTest {
         assertThat(guestRepository.findByProjectId(project.getId()))
                 .singleElement()
                 .satisfies(g -> {
-                    assertThat(g.getName()).isEqualTo("Alex & Jamie");
+                    assertThat(g.getFullName()).isEqualTo("Alex Jamie");
                     assertThat(g.getRsvpStatus()).isEqualTo(RsvpStatus.ATTENDING);
                     assertThat(g.getPartySize()).isEqualTo(2);
                     assertThat(g.getDietaryNotes()).isEqualTo("Vegetarian");
@@ -73,7 +74,7 @@ class GuestMappingTest extends AbstractPostgresContainerTest {
 
         // Enum columns store the literal name, like rsvp_status (char(1) reads back as a Character).
         Object storedPriority = em.getEntityManager()
-                .createNativeQuery("SELECT priority FROM guests WHERE name = 'Sam'")
+                .createNativeQuery("SELECT priority FROM guests WHERE first_name = 'Sam'")
                 .getSingleResult();
         assertThat(storedPriority).hasToString("A");
     }
@@ -85,7 +86,7 @@ class GuestMappingTest extends AbstractPostgresContainerTest {
         em.persistAndFlush(project);
 
         Object stored = em.getEntityManager()
-                .createNativeQuery("SELECT rsvp_status FROM guests WHERE name = 'Pat'")
+                .createNativeQuery("SELECT rsvp_status FROM guests WHERE first_name = 'Pat'")
                 .getSingleResult();
 
         assertThat(stored).isEqualTo("DECLINED");

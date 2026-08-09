@@ -138,7 +138,8 @@ class InvitationRsvpAdminIntegrationTest extends AbstractIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "name", "Alex & Jamie",
+                                "firstName", "Alex",
+                                "lastName", "Jamie",
                                 "rsvpStatus", "PENDING",
                                 "partySize", 2))))
                 .andExpect(status().isCreated())
@@ -148,7 +149,7 @@ class InvitationRsvpAdminIntegrationTest extends AbstractIntegrationTest {
         // Unauthenticated view.
         mockMvc.perform(get("/api/public/rsvp/" + rsvpToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.guestName").value("Alex & Jamie"))
+                .andExpect(jsonPath("$.guestName").value("Alex Jamie"))
                 .andExpect(jsonPath("$.projectName").value("RSVP Wedding"));
 
         // Unauthenticated respond. Party size is deliberately absent from the request — the
@@ -188,8 +189,8 @@ class InvitationRsvpAdminIntegrationTest extends AbstractIntegrationTest {
         String projectId = createProject(planner, "Import Wedding");
 
         List<Map<String, Object>> rows = List.of(
-                Map.of("name", "Row One", "rsvpStatus", "PENDING", "partySize", 1),
-                Map.of("name", "Row Two", "rsvpStatus", "ATTENDING", "partySize", 4,
+                Map.of("firstName", "Row", "lastName", "One", "rsvpStatus", "PENDING", "partySize", 1),
+                Map.of("firstName", "Row", "lastName", "Two", "rsvpStatus", "ATTENDING", "partySize", 4,
                         "tableNumber", 7, "dietaryNotes", "no nuts"));
 
         mockMvc.perform(post("/api/projects/" + projectId + "/guests/import")

@@ -5,10 +5,23 @@ assignments, CSV import/export, and per-guest public RSVP links.
 
 ## Data model
 
-`guests` table (Flyway `V2`, extended in `V3`): `name`, `email?`, `phone?`,
-`rsvp_status` (PENDING / ATTENDING / DECLINED / MAYBE), `party_size` (≥1, an entry can represent
-a household), `dietary_notes?`, `table_number?` (seating), and `rsvp_token` — a unique,
-unguessable UUID that powers the public RSVP link (see [rsvp.md](rsvp.md)).
+`guests` table (Flyway `V2`, extended in `V3`): `first_name`, `last_name?`, `title?`, `gender?`
+(`V17` — see below), `email?`, `phone?`, `rsvp_status` (PENDING / ATTENDING / DECLINED / MAYBE),
+`party_size?` (≥1 when set, an entry can represent a household; null means "just this guest" —
+treated as 1 everywhere it's summed: attending headcount, dietary rollup), `dietary_notes?`,
+`table_number?` (seating), and `rsvp_token` — a unique, unguessable UUID that powers the public
+RSVP link (see [rsvp.md](rsvp.md)).
+
+**Name split (`V17`).** A guest's name was originally one free-text `name` column; `V17` splits
+it into `first_name` (required), `last_name` (optional — a mononym or a joint "Alex & Jamie"
+style entry has none), `title` (optional free-text honorific, "Mr.", "Dr."), and `gender`
+(optional fixed enum MALE / FEMALE / OTHER). The migration backfills the split from the old
+`name` on a best-effort basis (first whitespace token → `first_name`, the rest → `last_name`) —
+titles embedded in the old name land in `first_name` and can be corrected per-row after
+migration. `Guest.getFullName()` recomposes a single display string ("Title First Last", skipping
+unset parts) for the activity log, the public RSVP page, and CSV export; the frontend has its own
+`guestFullName()` helper (`components/guests/guest-list.tsx`) so search/sort/render don't all
+round-trip through the backend.
 
 **Classification (`V12`, all optional/nullable).** Four planner-internal properties, none of
 which are ever exposed on the public RSVP surface (`RsvpDtos`/`PublicController` are untouched):
@@ -26,8 +39,9 @@ which are ever exposed on the public RSVP surface (`RsvpDtos`/`PublicController`
 
 `canAccess`-gated under `…/{projectId}/guests`: list / create / full-replace PUT / delete, plus
 `POST …/guests/import` — bulk create for CSV import (list of guest bodies, validated per row,
-**all-or-nothing** in one transaction). `GuestRequest`/`GuestResponse` carry `priority`,
-`relatedTo`, `relationship`, `roleId` (+ `roleName` on the response) alongside the original fields.
+**all-or-nothing** in one transaction). `GuestRequest`/`GuestResponse` carry `firstName`,
+`lastName`, `title`, `gender`, `priority`, `relatedTo`, `relationship`, `roleId` (+ `roleName` on
+the response) alongside the original fields.
 
 ## Frontend (`/projects/[id]/guests`)
 
@@ -39,28 +53,30 @@ which are ever exposed on the public RSVP surface (`RsvpDtos`/`PublicController`
   Priority (All / A / B / C), combined; search also matches on role name. Sortable by name, RSVP,
   party size, table, priority, and role.
 - **Rows** — RSVP badge, a **Priority** badge and **Role** badge when set, `Table N` badge,
-  party/contact/relationship/dietary meta line, quick RSVP select (threads the four classification
-  fields through unchanged — see Gotcha below), **copy RSVP link** button
-  (`<origin>/rsvp/<token>`), edit modal (Priority/Related to/Relationship/Role selects, all
+  party/contact/relationship/dietary meta line, quick RSVP select (threads every field through
+  unchanged — see Gotcha below), **copy RSVP link** button (`<origin>/rsvp/<token>`), edit modal
+  (First/Last name, Title, Gender, Priority/Related to/Relationship/Role selects, all the latter
   optional — blank = "not set"/"no role"), delete.
 - **CSV** — Export downloads `guest-list.csv`; Import parses client-side (`lib/csv.ts`, minimal
   RFC-4180: quotes/escapes, header detection, unknown RSVP → PENDING, unknown/blank
-  priority/related-to/relationship/role → left unset). Column order:
-  `name,email,phone,rsvpStatus,partySize,dietaryNotes,tableNumber,priority,relatedTo,relationship,role`
+  title/gender/priority/related-to/relationship/role → left unset, blank party size → left unset).
+  Column order:
+  `firstName,lastName,title,gender,email,phone,rsvpStatus,partySize,dietaryNotes,tableNumber,priority,relatedTo,relationship,role`
   — `role` round-trips by **display name** (matched case-insensitively against the active roles),
   not id, so exported CSVs stay human-editable.
 
 ## Gotcha
 
 PUT replaces the whole guest — every update call site must send **all** fields (including
-`tableNumber` and the four classification fields), or quick actions like the RSVP select will null
-out the rest.
+`lastName`/`title`/`gender`, `tableNumber`, and the four classification fields), or quick actions
+like the RSVP select will null out the rest.
 
 ## Key files
 
-- `backend/.../domain/{Guest,GuestRole,GuestPriority,RelatedTo,GuestRelationship}.java`,
+- `backend/.../domain/{Guest,Gender,GuestRole,GuestPriority,RelatedTo,GuestRelationship}.java`,
   `service/{GuestService,GuestRoleService}.java`,
-  `web/{GuestController,GuestRoleController,GuestRoleAdminController}.java`, migration `V12`
+  `web/{GuestController,GuestRoleController,GuestRoleAdminController}.java`, migrations
+  `V12`/`V17`
 - `frontend/components/guests/guest-list.tsx`, `components/admin/guest-role-manager.tsx`,
   `app/actions/{guests,guest-catalog}.ts`, `lib/csv.ts`,
   `app/(app)/admin/guest-roles/page.tsx`

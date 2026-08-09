@@ -22,11 +22,11 @@ public final class RsvpDtos {
 
         public static RsvpViewResponse from(Guest guest) {
             return new RsvpViewResponse(
-                    guest.getName(),
+                    guest.getFullName(),
                     guest.getProject().getName(),
                     guest.getProject().getWeddingDate(),
                     guest.getRsvpStatus(),
-                    guest.getPartySize(),
+                    guest.getPartySize() != null ? guest.getPartySize() : 1,
                     guest.getDietaryNotes());
         }
     }

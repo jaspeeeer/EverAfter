@@ -1,5 +1,6 @@
 package com.wedding.planner.dto;
 
+import com.wedding.planner.domain.Gender;
 import com.wedding.planner.domain.GuestPriority;
 import com.wedding.planner.domain.GuestRelationship;
 import com.wedding.planner.domain.RelatedTo;
@@ -11,11 +12,14 @@ import jakarta.validation.constraints.NotNull;
 import java.util.UUID;
 
 public record GuestRequest(
-        @NotBlank String name,
+        @NotBlank String firstName,
+        String lastName,
+        String title,
+        Gender gender,
         @Email String email,
         String phone,
         @NotNull RsvpStatus rsvpStatus,
-        @Min(1) int partySize,
+        @Min(1) Integer partySize,
         String dietaryNotes,
         @Min(1) Integer tableNumber,
         // Planner-internal classification — all optional.

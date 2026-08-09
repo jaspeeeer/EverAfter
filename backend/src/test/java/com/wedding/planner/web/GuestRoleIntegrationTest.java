@@ -126,7 +126,8 @@ class GuestRoleIntegrationTest extends AbstractIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "name", "Best Man Bob", "rsvpStatus", "ATTENDING", "partySize", 1,
+                                "firstName", "Best Man", "lastName", "Bob",
+                                "rsvpStatus", "ATTENDING", "partySize", 1,
                                 "roleId", roleId(planner, "BEST_MAN")))))
                 .andExpect(status().isCreated());
 
@@ -148,7 +149,7 @@ class GuestRoleIntegrationTest extends AbstractIntegrationTest {
         String projectId = createProject(planner, "Classified Wedding");
 
         var body = new HashMap<String, Object>();
-        body.put("name", "Priya");
+        body.put("firstName", "Priya");
         body.put("rsvpStatus", "ATTENDING");
         body.put("partySize", 1);
         body.put("priority", "A");
@@ -166,7 +167,7 @@ class GuestRoleIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.roleName").value("Principal Sponsor"));
 
         // An unknown roleId is a 400.
-        body.put("name", "Bad");
+        body.put("firstName", "Bad");
         body.put("roleId", "00000000-0000-0000-0000-000000000000");
         mockMvc.perform(post("/api/projects/" + projectId + "/guests")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner)

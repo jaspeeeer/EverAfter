@@ -54,7 +54,7 @@ public class GuestService {
         guest.setProject(project);
         Guest saved = guestRepository.save(guest);
         activityLog.record(projectId, ActivityEntityType.GUEST, saved.getId(),
-                ActivityAction.CREATE, "Added guest \"" + saved.getName() + "\"");
+                ActivityAction.CREATE, "Added guest \"" + saved.getFullName() + "\"");
         return GuestResponse.from(saved);
     }
 
@@ -80,7 +80,10 @@ public class GuestService {
     public GuestResponse update(UUID projectId, UUID guestId, GuestRequest request) {
         Guest guest = requireGuestInProject(projectId, guestId);
         boolean rsvpChanged = guest.getRsvpStatus() != request.rsvpStatus();
-        guest.setName(request.name());
+        guest.setFirstName(request.firstName());
+        guest.setLastName(request.lastName());
+        guest.setTitle(request.title());
+        guest.setGender(request.gender());
         guest.setEmail(request.email());
         guest.setPhone(request.phone());
         guest.setRsvpStatus(request.rsvpStatus());
@@ -92,15 +95,18 @@ public class GuestService {
         guest.setRelationship(request.relationship());
         guest.setRole(guestRoleService.requireForAssignmentOrNull(request.roleId()));
         String summary = rsvpChanged
-                ? "Marked \"" + guest.getName() + "\" as " + guest.getRsvpStatus().name()
-                : "Updated guest \"" + guest.getName() + "\"";
+                ? "Marked \"" + guest.getFullName() + "\" as " + guest.getRsvpStatus().name()
+                : "Updated guest \"" + guest.getFullName() + "\"";
         activityLog.record(projectId, ActivityEntityType.GUEST, guestId,
                 ActivityAction.UPDATE, summary);
         return GuestResponse.from(guest);
     }
 
     private Guest fromRequest(GuestRequest request) {
-        Guest guest = new Guest(request.name(), request.rsvpStatus(), request.partySize());
+        Guest guest = new Guest(request.firstName(), request.rsvpStatus(), request.partySize());
+        guest.setLastName(request.lastName());
+        guest.setTitle(request.title());
+        guest.setGender(request.gender());
         guest.setEmail(request.email());
         guest.setPhone(request.phone());
         guest.setDietaryNotes(request.dietaryNotes());
@@ -115,7 +121,7 @@ public class GuestService {
     @Transactional
     public void delete(UUID projectId, UUID guestId) {
         Guest guest = requireGuestInProject(projectId, guestId);
-        String name = guest.getName();
+        String name = guest.getFullName();
         guestRepository.delete(guest);
         activityLog.record(projectId, ActivityEntityType.GUEST, guestId,
                 ActivityAction.DELETE, "Deleted guest \"" + name + "\"");

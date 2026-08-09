@@ -9,8 +9,9 @@ one guest and leaks nothing else.
 1. The couple/planner copies a guest's link from the Guests tab: `<origin>/rsvp/<token>`.
 2. The page (`/rsvp/[token]`, public in `frontend/proxy.ts`) server-fetches
    `GET /api/public/rsvp/{token}` and renders an invitation-style card: project name, wedding
-   date, "Hello, <guest>", and a form — attendance choice ("Joyfully accepts / Regretfully
-   declines / Not sure yet"), party size, dietary needs.
+   date, "Hello, <guest>" (the guest's composed display name — see [guests.md](guests.md)), and a
+   form — attendance choice ("Joyfully accepts / Regretfully declines / Not sure yet"), dietary
+   needs. There's no party-size field: headcount is planner-managed (see below).
 3. Submit → `PUT /api/public/rsvp/{token}` (via `submitRsvpAction`) → thank-you state. The link
    stays live so guests can change their answer; updates appear immediately in the project's
    guest list and dietary rollup.
@@ -18,10 +19,13 @@ one guest and leaks nothing else.
 ## Security posture
 
 - `/api/public/**` is `permitAll`, but every route is keyed by a 122-bit-random UUID token.
-- The view DTO (`RsvpViewResponse`) exposes only guest name, project name, wedding date and the
-  guest's own RSVP fields — no IDs, no other guests.
-- The update DTO accepts only `rsvpStatus`, `partySize` (≥1), `dietaryNotes` — a guest can never
-  rename themselves, change tables, or touch anything else.
+- The view DTO (`RsvpViewResponse`) exposes only the guest's composed display name, project name,
+  wedding date and the guest's own RSVP fields — no IDs, no other guests.
+- The update DTO (`RsvpUpdateRequest`) accepts only `rsvpStatus` and `dietaryNotes` — a guest can
+  never rename themselves, change tables, or touch anything else. Party size is deliberately not
+  updatable here: `GuestService.respondByRsvpToken` always resets it to 1 server-side on every
+  public submission, regardless of what the planner had set — headcount stays planner-managed via
+  the guest editor.
 - Unknown tokens → 404 (verified in tests both at API and page level).
 
 ## Key files

@@ -1,5 +1,6 @@
 package com.wedding.planner.dto;
 
+import com.wedding.planner.domain.Gender;
 import com.wedding.planner.domain.Guest;
 import com.wedding.planner.domain.GuestPriority;
 import com.wedding.planner.domain.GuestRelationship;
@@ -9,11 +10,14 @@ import java.util.UUID;
 
 public record GuestResponse(
         UUID id,
-        String name,
+        String firstName,
+        String lastName,
+        String title,
+        Gender gender,
         String email,
         String phone,
         RsvpStatus rsvpStatus,
-        int partySize,
+        Integer partySize,
         String dietaryNotes,
         Integer tableNumber,
         GuestPriority priority,
@@ -27,7 +31,10 @@ public record GuestResponse(
     public static GuestResponse from(Guest guest) {
         return new GuestResponse(
                 guest.getId(),
-                guest.getName(),
+                guest.getFirstName(),
+                guest.getLastName(),
+                guest.getTitle(),
+                guest.getGender(),
                 guest.getEmail(),
                 guest.getPhone(),
                 guest.getRsvpStatus(),
