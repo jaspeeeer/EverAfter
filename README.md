@@ -171,6 +171,9 @@ The backend suite (`cd backend && ./mvnw verify`) remains on Testcontainers.
   vendor **agreed price** that feeds the Budget tab, and admin **reports** (vendors by category,
   in-demand vendors over a date range, booking conversion) with CSV export. See
   [docs/vendor-catalog.md](docs/vendor-catalog.md).
+- **Attachments** — contracts, receipts, and quotes (PDF or image, up to 10 MB) hung off a
+  vendor, a vendor payment, or an expense, stored outside Postgres and gated by the same
+  project-access rule as the owner resource. See [docs/attachments.md](docs/attachments.md).
 
 ### UX polish
 

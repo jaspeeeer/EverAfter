@@ -3,6 +3,7 @@ package com.wedding.planner.service;
 import com.wedding.planner.audit.ActivityLogService;
 import com.wedding.planner.domain.ActivityAction;
 import com.wedding.planner.domain.ActivityEntityType;
+import com.wedding.planner.domain.AttachmentOwnerType;
 import com.wedding.planner.domain.Expense;
 import com.wedding.planner.domain.Project;
 import com.wedding.planner.domain.Vendor;
@@ -32,17 +33,20 @@ public class ExpenseService {
     private final VendorCategoryService vendorCategoryService;
     private final VendorRepository vendorRepository;
     private final ActivityLogService activityLog;
+    private final AttachmentService attachmentService;
 
     public ExpenseService(ExpenseRepository expenseRepository,
                           ProjectRepository projectRepository,
                           VendorCategoryService vendorCategoryService,
                           VendorRepository vendorRepository,
-                          ActivityLogService activityLog) {
+                          ActivityLogService activityLog,
+                          AttachmentService attachmentService) {
         this.expenseRepository = expenseRepository;
         this.projectRepository = projectRepository;
         this.vendorCategoryService = vendorCategoryService;
         this.vendorRepository = vendorRepository;
         this.activityLog = activityLog;
+        this.attachmentService = attachmentService;
     }
 
     @Transactional(readOnly = true)
@@ -95,6 +99,7 @@ public class ExpenseService {
                     "This line is from a vendor's agreed price — clear it on the vendor instead");
         }
         String description = expense.getDescription();
+        attachmentService.deleteAllFor(AttachmentOwnerType.EXPENSE, expenseId);
         expenseRepository.delete(expense);
         activityLog.record(projectId, ActivityEntityType.EXPENSE, expenseId,
                 ActivityAction.DELETE, "Deleted expense \"" + description + "\"");
