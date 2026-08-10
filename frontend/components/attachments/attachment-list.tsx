@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { formatBytes, formatDate } from "@/lib/format";
 import type { AttachmentOwnerType, AttachmentResponse } from "@/lib/types";
+import { ImageLightbox } from "./image-lightbox";
 
 const ALLOWED_TYPES = new Set([
   "image/jpeg",
@@ -48,6 +49,7 @@ export function AttachmentList({ projectId, ownerType, ownerId }: AttachmentList
   const [attachments, setAttachments] = useState<AttachmentResponse[] | null>(null);
   const [busy, startBusy] = useTransition();
   const [clientError, setClientError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<AttachmentResponse | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const { toast } = useToast();
@@ -127,14 +129,24 @@ export function AttachmentList({ projectId, ownerType, ownerId }: AttachmentList
           {attachments.map((a) => (
             <li key={a.id} className="flex items-center gap-2 px-3 py-2 text-sm">
               <AttachmentIcon contentType={a.contentType} />
-              <a
-                href={`/api/projects/${projectId}/attachments/${a.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="min-w-0 flex-1 truncate font-medium text-primary hover:underline"
-              >
-                {a.filename}
-              </a>
+              {a.contentType.startsWith("image/") ? (
+                <button
+                  type="button"
+                  onClick={() => setPreview(a)}
+                  className="min-w-0 flex-1 truncate text-left font-medium text-primary hover:underline"
+                >
+                  {a.filename}
+                </button>
+              ) : (
+                <a
+                  href={`/api/projects/${projectId}/attachments/${a.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="min-w-0 flex-1 truncate font-medium text-primary hover:underline"
+                >
+                  {a.filename}
+                </a>
+              )}
               <span className="shrink-0 text-xs text-muted-foreground">
                 {formatBytes(a.sizeBytes)} · {formatDate(a.uploadedAt)}
               </span>
@@ -176,6 +188,13 @@ export function AttachmentList({ projectId, ownerType, ownerId }: AttachmentList
           PDF or image, up to 10 MB.
         </p>
       </form>
+
+      <ImageLightbox
+        open={preview !== null}
+        onClose={() => setPreview(null)}
+        src={preview ? `/api/projects/${projectId}/attachments/${preview.id}` : ""}
+        alt={preview?.filename ?? ""}
+      />
     </div>
   );
 }

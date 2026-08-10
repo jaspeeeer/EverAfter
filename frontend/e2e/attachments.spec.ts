@@ -86,3 +86,53 @@ test("planner attaches and removes a receipt on an expense", async ({ page, requ
   await expect(page.getByText("Attachment removed")).toBeVisible();
   await expect(editDialog.getByText("No files attached yet.")).toBeVisible();
 });
+
+test("planner previews an image attachment in a lightbox that Escape closes on its own", async ({
+  page,
+  request,
+}) => {
+  const email = uniqueEmail("attach-lightbox");
+  const token = await apiRegister(request, email, "ROLE_PLANNER");
+  const projectId = await apiCreateProject(request, token, "Lightbox Wedding");
+
+  await uiLogin(page, email);
+  await page.waitForURL("**/dashboard");
+
+  await page.goto(`/projects/${projectId}/vendors`);
+  await page.getByRole("button", { name: "Add vendor" }).click();
+  const createDialog = page.getByRole("dialog");
+  await createDialog.getByLabel("Vendor name").fill("Snap Studio");
+  await createDialog.getByRole("button", { name: "Add vendor" }).click();
+  await expect(page.getByText("Vendor added")).toBeVisible();
+
+  await page.getByRole("button", { name: "Edit vendor" }).click();
+  const editDialog = page.getByRole("dialog");
+  await expect(editDialog.getByText("Files", { exact: true })).toBeVisible();
+
+  // A 1x1 PNG is enough — the lightbox only needs a real image/* response to preview.
+  const onePixelPng = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+    "base64",
+  );
+  await editDialog.locator('input[type="file"]').setInputFiles({
+    name: "venue.png",
+    mimeType: "image/png",
+    buffer: onePixelPng,
+  });
+  await expect(page.getByText("File attached")).toBeVisible();
+
+  // Image attachments render as a preview button, not a download link.
+  const fileButton = editDialog.getByRole("button", { name: "venue.png", exact: true });
+  await expect(fileButton).toBeVisible();
+  await fileButton.click();
+
+  const lightboxImage = page.getByRole("img", { name: "venue.png" });
+  await expect(lightboxImage).toBeVisible();
+
+  // Escape must close only the lightbox — the vendor edit dialog underneath must survive, since
+  // both attach an Escape listener and the lightbox has to win via capture + stopPropagation.
+  await page.keyboard.press("Escape");
+  await expect(lightboxImage).not.toBeVisible();
+  await expect(editDialog).toBeVisible();
+  await expect(editDialog.getByText("Files", { exact: true })).toBeVisible();
+});

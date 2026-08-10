@@ -61,7 +61,25 @@ owner's own delete already logs a summary line.
 `components/attachments/attachment-list.tsx` — a self-contained "Files" panel that takes
 `{ projectId, ownerType, ownerId }` and loads on demand (the parent only mounts it once an owner
 id exists — e.g. a vendor must be created before it can hold attachments). Client-side validates
-type/size before submitting so obviously-bad uploads never hit the network. Wired into:
+type/size before submitting so obviously-bad uploads never hit the network.
+
+**Image preview.** An image attachment (`contentType` starting `image/`) renders as a button that
+opens `components/attachments/image-lightbox.tsx` instead of the plain download `<a>` a PDF gets.
+The download proxy route (`app/api/projects/[projectId]/attachments/[id]/route.ts`) works unchanged
+as an `<img src>` — browsers ignore `Content-Disposition` for subresource requests, only for
+top-level navigation, so the same authenticated URL that forces a PDF download renders an image
+inline. **Deliberately not `next/image`**: its optimizer refetches the URL server-side without the
+httpOnly `wp_token` cookie, which would 401.
+
+The lightbox is a standalone overlay, not built on `components/ui/modal.tsx`, because every
+attachment list already renders inside an open `Modal` (the vendor/payment/expense edit dialogs) —
+a lightbox is therefore always a *nested* overlay. `Modal`'s Escape handler is an unscoped
+`document` listener, so a naive nested `Modal` would close both layers on one Escape press. The
+lightbox's own Escape listener registers with `{ capture: true }` and calls `stopPropagation()` so
+it wins the race and the parent edit dialog survives. Covered by the last case in
+`e2e/attachments.spec.ts`.
+
+Wired into:
 - **Vendors** (`components/vendors/vendor-list.tsx`) — the vendor edit modal (owner = the vendor
   itself) and each payment row's expandable panel (owner = that `VendorPayment`, toggled by a
   paperclip button).
@@ -77,5 +95,6 @@ type/size before submitting so obviously-bad uploads never hit the network. Wire
 - `backend/.../domain/{Attachment,AttachmentOwnerType}.java`, `service/AttachmentService.java`,
   `storage/{AttachmentStorage,FilesystemAttachmentStorage}.java`,
   `web/AttachmentController.java`, `dto/AttachmentDtos.java`, migration `V16`
-- `frontend/components/attachments/attachment-list.tsx`, `app/actions/attachments.ts`
+- `frontend/components/attachments/{attachment-list,image-lightbox}.tsx`,
+  `app/actions/attachments.ts`
 - Tests: `AttachmentServiceTest`, `AttachmentControllerIntegrationTest`, `e2e/attachments.spec.ts`
