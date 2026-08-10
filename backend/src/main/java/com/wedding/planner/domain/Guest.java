@@ -27,8 +27,19 @@ public class Guest {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    @Column(name = "name", nullable = false, length = 200)
-    private String name;
+    @Column(name = "first_name", nullable = false, length = 100)
+    private String firstName;
+
+    @Column(name = "last_name", length = 100)
+    private String lastName;
+
+    /** Free-text honorific ("Mr.", "Dr.", …); optional. */
+    @Column(name = "title", length = 20)
+    private String title;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "gender", length = 20)
+    private Gender gender;
 
     @Column(name = "email", length = 255)
     private String email;
@@ -40,9 +51,12 @@ public class Guest {
     @Column(name = "rsvp_status", nullable = false, length = 20)
     private RsvpStatus rsvpStatus = RsvpStatus.PENDING;
 
-    /** Number of people this entry represents (e.g. a couple or family = a party of 2+). */
-    @Column(name = "party_size", nullable = false)
-    private int partySize = 1;
+    /**
+     * Number of people this entry represents (e.g. a couple or family = a party of 2+).
+     * Null means "just this guest" — treated as 1 everywhere it's summed.
+     */
+    @Column(name = "party_size")
+    private Integer partySize;
 
     @Column(name = "dietary_notes", length = 500)
     private String dietaryNotes;
@@ -89,8 +103,8 @@ public class Guest {
         // Required by JPA.
     }
 
-    public Guest(String name, RsvpStatus rsvpStatus, int partySize) {
-        this.name = name;
+    public Guest(String firstName, RsvpStatus rsvpStatus, Integer partySize) {
+        this.firstName = firstName;
         this.rsvpStatus = rsvpStatus;
         this.partySize = partySize;
     }
@@ -99,12 +113,49 @@ public class Guest {
         return id;
     }
 
-    public String getName() {
-        return name;
+    public String getFirstName() {
+        return firstName;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public void setFirstName(String firstName) {
+        this.firstName = firstName;
+    }
+
+    public String getLastName() {
+        return lastName;
+    }
+
+    public void setLastName(String lastName) {
+        this.lastName = lastName;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
+    }
+
+    public Gender getGender() {
+        return gender;
+    }
+
+    public void setGender(Gender gender) {
+        this.gender = gender;
+    }
+
+    /** Display name composed as "Title First Last", skipping any unset parts. */
+    public String getFullName() {
+        StringBuilder sb = new StringBuilder();
+        if (title != null && !title.isBlank()) {
+            sb.append(title).append(' ');
+        }
+        sb.append(firstName);
+        if (lastName != null && !lastName.isBlank()) {
+            sb.append(' ').append(lastName);
+        }
+        return sb.toString();
     }
 
     public String getEmail() {
@@ -131,11 +182,11 @@ public class Guest {
         this.rsvpStatus = rsvpStatus;
     }
 
-    public int getPartySize() {
+    public Integer getPartySize() {
         return partySize;
     }
 
-    public void setPartySize(int partySize) {
+    public void setPartySize(Integer partySize) {
         this.partySize = partySize;
     }
 

@@ -9,5 +9,6 @@ public enum ActivityEntityType {
     EXPENSE,
     GUEST,
     INVITATION,
-    TIMELINE_EVENT
+    TIMELINE_EVENT,
+    ATTACHMENT
 }

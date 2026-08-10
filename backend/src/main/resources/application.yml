@@ -41,12 +41,25 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: false
 
+  servlet:
+    multipart:
+      # Hard parse-time ceiling; AttachmentService re-checks app.attachments.max-file-bytes as
+      # defence in depth. A little headroom over the app limit avoids Spring rejecting the
+      # request before our friendlier error message can run.
+      max-file-size: 12MB
+      max-request-size: 12MB
+
 logging:
   level:
     org.hibernate.SQL: info
 
 # Application-specific settings.
 app:
+  attachments:
+    # Filesystem root for uploaded contracts/receipts. Point this at a mounted volume in prod;
+    # defaults to a subfolder of the OS temp dir for local/dev convenience.
+    storage-root: ${APP_ATTACHMENTS_STORAGE_ROOT:${java.io.tmpdir}/wedding-attachments}
+    max-file-bytes: ${APP_ATTACHMENTS_MAX_FILE_BYTES:10485760}
   # Daily in-app notifications generator (see notification.ReminderScheduler).
   notifications:
     enabled: ${APP_NOTIFICATIONS_ENABLED:true}

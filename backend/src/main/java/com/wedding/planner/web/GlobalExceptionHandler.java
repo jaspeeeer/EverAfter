@@ -4,6 +4,7 @@ import com.wedding.planner.exception.BadRequestException;
 import com.wedding.planner.exception.ConflictException;
 import com.wedding.planner.exception.EmailAlreadyExistsException;
 import com.wedding.planner.exception.ResourceNotFoundException;
+import com.wedding.planner.exception.UnsupportedMediaTypeException;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -42,6 +43,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BadRequestException.class)
     ProblemDetail handleBadRequest(BadRequestException ex) {
         return problem(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    @ExceptionHandler(UnsupportedMediaTypeException.class)
+    ProblemDetail handleUnsupportedMediaType(UnsupportedMediaTypeException ex) {
+        return problem(HttpStatus.UNSUPPORTED_MEDIA_TYPE, ex.getMessage());
     }
 
     @ExceptionHandler(BadCredentialsException.class)

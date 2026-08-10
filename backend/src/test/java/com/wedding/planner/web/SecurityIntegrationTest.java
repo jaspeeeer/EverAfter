@@ -277,7 +277,8 @@ class SecurityIntegrationTest extends AbstractIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + owner)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "name", "Alex & Jamie",
+                                "firstName", "Alex",
+                                "lastName", "Jamie",
                                 "rsvpStatus", "ATTENDING",
                                 "partySize", 2))))
                 .andExpect(status().isCreated());
@@ -287,7 +288,8 @@ class SecurityIntegrationTest extends AbstractIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + owner))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].name").value("Alex & Jamie"));
+                .andExpect(jsonPath("$[0].firstName").value("Alex"))
+                .andExpect(jsonPath("$[0].lastName").value("Jamie"));
 
         // A different planner cannot see them.
         mockMvc.perform(get("/api/projects/" + projectId + "/guests")

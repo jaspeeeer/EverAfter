@@ -3,6 +3,7 @@ package com.wedding.planner.service;
 import com.wedding.planner.audit.ActivityLogService;
 import com.wedding.planner.domain.ActivityAction;
 import com.wedding.planner.domain.ActivityEntityType;
+import com.wedding.planner.domain.AttachmentOwnerType;
 import com.wedding.planner.domain.Expense;
 import com.wedding.planner.domain.Project;
 import com.wedding.planner.domain.Vendor;
@@ -45,6 +46,7 @@ public class VendorService {
     private final ExpenseRepository expenseRepository;
     private final VendorPaymentRepository paymentRepository;
     private final ActivityLogService activityLog;
+    private final AttachmentService attachmentService;
 
     public VendorService(VendorRepository vendorRepository,
                          ProjectRepository projectRepository,
@@ -52,7 +54,8 @@ public class VendorService {
                          VendorDirectoryRepository directoryRepository,
                          ExpenseRepository expenseRepository,
                          VendorPaymentRepository paymentRepository,
-                         ActivityLogService activityLog) {
+                         ActivityLogService activityLog,
+                         AttachmentService attachmentService) {
         this.vendorRepository = vendorRepository;
         this.projectRepository = projectRepository;
         this.vendorCategoryService = vendorCategoryService;
@@ -60,6 +63,7 @@ public class VendorService {
         this.expenseRepository = expenseRepository;
         this.paymentRepository = paymentRepository;
         this.activityLog = activityLog;
+        this.attachmentService = attachmentService;
     }
 
     @Transactional(readOnly = true)
@@ -124,6 +128,11 @@ public class VendorService {
         // left in place (the FK is ON DELETE SET NULL, so they simply unmap).
         expenseRepository.findByVendorIdAndManagedTrue(vendorId)
                 .ifPresent(expenseRepository::delete);
+        // Attachments are polymorphic (no FK), so the DB's ON DELETE CASCADE from vendors to
+        // vendor_payments won't clean up attachment rows/files for those payments — do it here.
+        paymentRepository.findByVendorIdChronological(vendorId)
+                .forEach(p -> attachmentService.deleteAllFor(AttachmentOwnerType.VENDOR_PAYMENT, p.getId()));
+        attachmentService.deleteAllFor(AttachmentOwnerType.VENDOR, vendorId);
         vendorRepository.delete(vendor);
         activityLog.record(projectId, ActivityEntityType.VENDOR, vendorId,
                 ActivityAction.DELETE, "Deleted vendor \"" + name + "\"");
@@ -252,6 +261,7 @@ public class VendorService {
         Vendor vendor = requireVendorInProject(projectId, vendorId);
         VendorPayment payment = requirePaymentOfVendor(vendorId, paymentId);
         var amount = payment.getAmount();
+        attachmentService.deleteAllFor(AttachmentOwnerType.VENDOR_PAYMENT, paymentId);
         paymentRepository.delete(payment);
         syncVendorExpense(vendor);
         activityLog.record(projectId, ActivityEntityType.VENDOR_PAYMENT, paymentId,

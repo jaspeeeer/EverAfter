@@ -1,0 +1,137 @@
+@import "tailwindcss";
+
+/*
+ * Wedding Planner design system (Tailwind v4, CSS-first).
+ * Semantic tokens are defined as CSS variables and exposed to Tailwind via @theme inline,
+ * so utilities like `bg-primary`, `text-muted-foreground`, `border-border`, `font-display`
+ * and `rounded-lg` resolve to these values. Light is the default; `.dark` overrides.
+ */
+
+:root {
+  /* Surfaces */
+  --background: #fbf8f6;      /* warm off-white */
+  --foreground: #2a2426;      /* warm charcoal */
+  --card: #ffffff;
+  --card-foreground: #2a2426;
+
+  /* Brand — dusty rose */
+  --primary: #b25e77;
+  --primary-foreground: #ffffff;
+
+  /* Secondary — soft sage */
+  --secondary: #e7ede7;
+  --secondary-foreground: #33463a;
+
+  /* Accent — champagne gold */
+  --accent: #c9a227;
+  --accent-foreground: #2a2426;
+
+  /* Muted / subtle */
+  --muted: #f2ecea;
+  --muted-foreground: #857a7e;
+
+  /* Feedback */
+  --destructive: #c1443b;
+  --destructive-foreground: #ffffff;
+  --success: #4f8a5b;
+  --success-foreground: #ffffff;
+  --warning: #cc8b2f;
+  --warning-foreground: #2a2426;
+
+  /* Lines & focus */
+  --border: #ece3e0;
+  --input: #ece3e0;
+  --ring: #b25e77;
+
+  /* Chart series (validated against the card surface — see budget breakdown chart).
+     Light mode reuses the brand tokens; dark mode has its own selected steps. */
+  --chart-paid: #b25e77;
+  --chart-outstanding: #c9a227;
+
+  --radius: 0.75rem;
+}
+
+.dark {
+  --background: #1c1618;
+  --foreground: #f5efec;
+  --card: #262022;
+  --card-foreground: #f5efec;
+
+  --primary: #cd8090;
+  --primary-foreground: #1c1618;
+
+  --secondary: #2b3a30;
+  --secondary-foreground: #dfeadf;
+
+  --accent: #d8b64a;
+  --accent-foreground: #1c1618;
+
+  --muted: #2a2325;
+  --muted-foreground: #a99fa2;
+
+  --destructive: #e06a61;
+  --destructive-foreground: #1c1618;
+  --success: #6bab77;
+  --success-foreground: #1c1618;
+  --warning: #e0a84e;
+  --warning-foreground: #1c1618;
+
+  --border: #362d30;
+  --input: #362d30;
+  --ring: #cd8090;
+
+  /* Dark chart steps: same hues, re-selected for the dark card surface (#262022). */
+  --chart-paid: #c46b84;
+  --chart-outstanding: #a8851f;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-display), ui-serif, Georgia, serif;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+  }
+}
