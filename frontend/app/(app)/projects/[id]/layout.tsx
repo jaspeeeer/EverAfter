@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Printer } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { getProject } from "@/lib/data";
 import { ApiError } from "@/lib/api";
 import { countdownToWedding, formatDate, formatMoney } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { ProjectTabs } from "@/components/projects/project-tabs";
 
 export default async function ProjectLayout({
@@ -31,23 +33,32 @@ export default async function ProjectLayout({
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link
-          href="/dashboard"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ChevronLeft className="size-4" />
-          All projects
-        </Link>
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          <h1 className="text-3xl font-bold tracking-tight">{project.name}</h1>
-          {countdownToWedding(project.weddingDate) && (
-            <Badge variant="primary">{countdownToWedding(project.weddingDate)}</Badge>
-          )}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ChevronLeft className="size-4" />
+            All projects
+          </Link>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <h1 className="text-3xl font-bold tracking-tight">{project.name}</h1>
+            {countdownToWedding(project.weddingDate) && (
+              <Badge variant="primary">{countdownToWedding(project.weddingDate)}</Badge>
+            )}
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {formatDate(project.weddingDate)} · {formatMoney(project.totalBudget)} budget
+          </p>
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {formatDate(project.weddingDate)} · {formatMoney(project.totalBudget)} budget
-        </p>
+        <Link
+          href={`/projects/${id}/day-of`}
+          className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+        >
+          <Printer />
+          Day-of sheet
+        </Link>
       </div>
 
       <ProjectTabs projectId={id} />

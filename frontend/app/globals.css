@@ -135,3 +135,46 @@
     font-family: var(--font-display);
   }
 }
+
+/*
+ * Ink-on-paper for anything printed (the day-of packet, or any other page a user Cmd+P's).
+ * `.dark` is a class on <html>, so without this, printing from dark mode would print dark
+ * backgrounds — this block's specificity (":root, .dark" beats ".dark" alone) resets every
+ * token @theme maps utilities through, so the whole design system flips with no per-utility
+ * overrides needed. Badges keep their text labels as the real signal (per the app's own
+ * "identity never color alone" rule), so collapsing every semantic color to one ink shade here
+ * loses nothing — see docs/day-of-packet.md.
+ */
+@media print {
+  :root, .dark {
+    --background: #ffffff;
+    --foreground: #1a1a1a;
+    --card: #ffffff;
+    --card-foreground: #1a1a1a;
+
+    --primary: #1a1a1a;
+    --primary-foreground: #ffffff;
+    --secondary: #f0f0f0;
+    --secondary-foreground: #1a1a1a;
+    --accent: #e0e0e0;
+    --accent-foreground: #1a1a1a;
+
+    --muted: #f0f0f0;
+    --muted-foreground: #5a5a5a;
+
+    --destructive: #1a1a1a;
+    --destructive-foreground: #ffffff;
+    --success: #1a1a1a;
+    --success-foreground: #ffffff;
+    --warning: #1a1a1a;
+    --warning-foreground: #ffffff;
+
+    --border: #cccccc;
+    --input: #cccccc;
+    --ring: #1a1a1a;
+
+    /* Not exposed via @theme — consumed as inline styles by the budget breakdown chart. */
+    --chart-paid: #4a4a4a;
+    --chart-outstanding: #9a9a9a;
+  }
+}

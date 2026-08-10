@@ -86,6 +86,15 @@ export function formatBytes(bytes: number): string {
   return `${value.toFixed(1)} ${units[unitIndex]}`;
 }
 
+/** Composed "Title First Last" display name, skipping any unset parts. */
+export function guestFullName(guest: {
+  firstName: string;
+  lastName: string | null;
+  title: string | null;
+}): string {
+  return [guest.title, guest.firstName, guest.lastName].filter(Boolean).join(" ");
+}
+
 const VENDOR_LABELS: Record<string, string> = {
   VENUE: "Venue",
   CATERING: "Catering",

@@ -22,7 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import { useTableControls } from "@/lib/use-table-controls";
 import { cn } from "@/lib/utils";
-import { formatPercent, humanizeEnum } from "@/lib/format";
+import { formatPercent, guestFullName, humanizeEnum } from "@/lib/format";
 import type {
   Gender,
   GuestPriority,
@@ -32,15 +32,6 @@ import type {
   RelatedTo,
   RsvpStatus,
 } from "@/lib/types";
-
-/** Composed "Title First Last" display name, skipping any unset parts. */
-function guestFullName(guest: {
-  firstName: string;
-  lastName: string | null;
-  title: string | null;
-}): string {
-  return [guest.title, guest.firstName, guest.lastName].filter(Boolean).join(" ");
-}
 
 const RSVP_OPTIONS: RsvpStatus[] = ["PENDING", "ATTENDING", "MAYBE", "DECLINED"];
 

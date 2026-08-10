@@ -56,6 +56,50 @@ export async function apiCategoryId(
   return match.id;
 }
 
+/** Creates a booked vendor under the seeded first category and returns its id. */
+export async function apiCreateVendor(
+  request: APIRequestContext,
+  token: string,
+  projectId: string,
+  name: string,
+): Promise<string> {
+  const catRes = await request.get(`${API}/api/vendor-categories`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  expect(catRes.ok(), "list vendor categories").toBeTruthy();
+  const categoryId = (await catRes.json())[0].id as string;
+
+  const res = await request.post(`${API}/api/projects/${projectId}/vendors`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: {
+      name,
+      categoryId,
+      contactEmail: "vendor@e2e.test",
+      phone: "+63 900 000 0000",
+      booked: true,
+    },
+  });
+  expect(res.ok(), `create vendor ${name}`).toBeTruthy();
+  return (await res.json()).id as string;
+}
+
+/** Creates a timeline event, optionally linking suppliers, and returns its id. */
+export async function apiCreateTimelineEvent(
+  request: APIRequestContext,
+  token: string,
+  projectId: string,
+  title: string,
+  startTime: string,
+  vendorIds: string[] = [],
+): Promise<string> {
+  const res = await request.post(`${API}/api/projects/${projectId}/timeline`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { title, startTime, vendorIds },
+  });
+  expect(res.ok(), `create timeline event ${title}`).toBeTruthy();
+  return (await res.json()).id as string;
+}
+
 export async function apiCreateInvitation(
   request: APIRequestContext,
   token: string,
