@@ -181,6 +181,15 @@ class InvitationRsvpAdminIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    void malformedRsvpTokenIs404TheSameAsAnUnknownOne() throws Exception {
+        // A non-UUID path segment must not be distinguishable from a well-formed-but-unknown
+        // token — otherwise the two error shapes leak whether a guessed string merely fails to
+        // parse vs. genuinely doesn't exist.
+        mockMvc.perform(get("/api/public/rsvp/not-a-uuid"))
+                .andExpect(status().isNotFound());
+    }
+
     // --- Guest CSV import ---
 
     @Test

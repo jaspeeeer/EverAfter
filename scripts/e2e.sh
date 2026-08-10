@@ -44,6 +44,7 @@ SPRING_DATASOURCE_URL="jdbc:postgresql://localhost:$PG_PORT/wedding" \
 SPRING_DATASOURCE_USERNAME="wedding" \
 SPRING_DATASOURCE_PASSWORD="wedding" \
 APP_JWT_SECRET="e2e-only-signing-secret-at-least-32-bytes-long-000000" \
+APP_RATE_LIMIT_ENABLED="false" \
   java -jar target/wedding-planner-backend-0.0.1-SNAPSHOT.jar >"$BACKEND_LOG" 2>&1 &
 BACKEND_PID=$!
 

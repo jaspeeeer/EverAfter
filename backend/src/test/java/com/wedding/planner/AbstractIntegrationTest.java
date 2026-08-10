@@ -30,5 +30,9 @@ public abstract class AbstractIntegrationTest {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
+        // Most tests here register/login many times per run; the rate limiter has its own
+        // dedicated test (RateLimitFilterIntegrationTest, with a standalone context so it can
+        // re-enable this without racing the disable below).
+        registry.add("app.rate-limit.enabled", () -> false);
     }
 }

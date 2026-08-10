@@ -26,12 +26,30 @@ one guest and leaks nothing else.
   updatable here: `GuestService.respondByRsvpToken` always resets it to 1 server-side on every
   public submission, regardless of what the planner had set — headcount stays planner-managed via
   the guest editor.
-- Unknown tokens → 404 (verified in tests both at API and page level).
+- Unknown tokens → 404 (verified in tests both at API and page level). A **malformed** token (not
+  a UUID at all) gets the same 404, not a different error shape — otherwise the two cases would be
+  distinguishable, turning the endpoint into a token-format oracle
+  (`GlobalExceptionHandler.handleTypeMismatch`).
+- **Rate limited.** `RateLimitFilter` throttles `/api/public/**` per client IP
+  (`app.rate-limit.public-api.*`, default 30 requests/minute) — the token keyspace itself is
+  infeasible to brute-force (122-bit random UUID), but the endpoint was otherwise free
+  reconnaissance and DoS amplification for anyone hammering it. `/api/auth/register` and
+  `/api/auth/login` share the same filter under a tighter `app.rate-limit.auth.*` budget (default
+  10/minute) — login is an account-enumeration oracle and a BCrypt CPU amplifier, register is a
+  similar enumeration surface. A throttled request gets a **429** with the same RFC-7807 shape
+  every other error uses (`ProblemDetails`, since a servlet filter runs outside
+  `@RestControllerAdvice` and can't reuse `GlobalExceptionHandler` directly) plus a `Retry-After`
+  header. See [Key files](#key-files) — `RateLimitFilterIntegrationTest` covers both buckets.
+  Disabled in every test suite (`app.rate-limit.enabled=false`) except its own dedicated test,
+  which needs the opposite and therefore runs in its own Spring context.
 
 ## Key files
 
 - `backend/.../web/PublicController.java`, `service/GuestService.java`
   (`viewByRsvpToken` / `respondByRsvpToken`), `dto/RsvpDtos.java`
+- `backend/.../security/RateLimitFilter.java`, `config/RateLimitProperties.java`,
+  `web/ProblemDetails.java` (shared RFC-7807 body builder)
 - `frontend/app/rsvp/[token]/page.tsx`, `components/rsvp/rsvp-form.tsx`,
   `app/actions/invitations.ts` (`submitRsvpAction`)
-- Tests: `InvitationRsvpAdminIntegrationTest`, `e2e/invite-rsvp.spec.ts`
+- Tests: `InvitationRsvpAdminIntegrationTest`, `RateLimitFilterIntegrationTest`,
+  `e2e/invite-rsvp.spec.ts`

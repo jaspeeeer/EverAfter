@@ -5,8 +5,6 @@ import com.wedding.planner.exception.ConflictException;
 import com.wedding.planner.exception.EmailAlreadyExistsException;
 import com.wedding.planner.exception.ResourceNotFoundException;
 import com.wedding.planner.exception.UnsupportedMediaTypeException;
-import java.time.Instant;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
@@ -17,6 +15,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /**
  * Translates domain and security exceptions into RFC-7807 {@link ProblemDetail} responses with
@@ -27,48 +26,59 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResourceNotFoundException.class)
     ProblemDetail handleNotFound(ResourceNotFoundException ex) {
-        return problem(HttpStatus.NOT_FOUND, ex.getMessage());
+        return ProblemDetails.of(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
     @ExceptionHandler(EmailAlreadyExistsException.class)
     ProblemDetail handleConflict(EmailAlreadyExistsException ex) {
-        return problem(HttpStatus.CONFLICT, ex.getMessage());
+        return ProblemDetails.of(HttpStatus.CONFLICT, ex.getMessage());
     }
 
     @ExceptionHandler(ConflictException.class)
     ProblemDetail handleConflict(ConflictException ex) {
-        return problem(HttpStatus.CONFLICT, ex.getMessage());
+        return ProblemDetails.of(HttpStatus.CONFLICT, ex.getMessage());
     }
 
     @ExceptionHandler(BadRequestException.class)
     ProblemDetail handleBadRequest(BadRequestException ex) {
-        return problem(HttpStatus.BAD_REQUEST, ex.getMessage());
+        return ProblemDetails.of(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
     @ExceptionHandler(UnsupportedMediaTypeException.class)
     ProblemDetail handleUnsupportedMediaType(UnsupportedMediaTypeException ex) {
-        return problem(HttpStatus.UNSUPPORTED_MEDIA_TYPE, ex.getMessage());
+        return ProblemDetails.of(HttpStatus.UNSUPPORTED_MEDIA_TYPE, ex.getMessage());
     }
 
     @ExceptionHandler(BadCredentialsException.class)
     ProblemDetail handleBadCredentials(BadCredentialsException ex) {
-        return problem(HttpStatus.UNAUTHORIZED, "Invalid email or password");
+        return ProblemDetails.of(HttpStatus.UNAUTHORIZED, "Invalid email or password");
     }
 
     @ExceptionHandler(org.springframework.security.authentication.DisabledException.class)
     ProblemDetail handleDisabled(org.springframework.security.authentication.DisabledException ex) {
-        return problem(HttpStatus.UNAUTHORIZED, "This account has been disabled");
+        return ProblemDetails.of(HttpStatus.UNAUTHORIZED, "This account has been disabled");
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     ProblemDetail handleAccessDenied(AccessDeniedException ex) {
-        return problem(HttpStatus.FORBIDDEN, "You do not have access to this resource");
+        return ProblemDetails.of(HttpStatus.FORBIDDEN, "You do not have access to this resource");
+    }
+
+    /**
+     * A path segment that fails to convert to the declared type (e.g. a non-UUID RSVP token).
+     * Mapped to the same 404 a well-formed-but-unknown token gets — otherwise the two cases are
+     * distinguishable (a different error shape), which turns the public RSVP/invitation surface
+     * into a token-format oracle.
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    ProblemDetail handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        return ProblemDetails.of(HttpStatus.NOT_FOUND, "Not found");
     }
 
     @ExceptionHandler(org.springframework.web.method.annotation.HandlerMethodValidationException.class)
     ProblemDetail handleMethodValidation(
             org.springframework.web.method.annotation.HandlerMethodValidationException ex) {
-        return problem(HttpStatus.BAD_REQUEST, "Validation failed for one or more entries");
+        return ProblemDetails.of(HttpStatus.BAD_REQUEST, "Validation failed for one or more entries");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -78,16 +88,8 @@ public class GlobalExceptionHandler {
                         FieldError::getField,
                         fe -> fe.getDefaultMessage() == null ? "invalid" : fe.getDefaultMessage(),
                         (a, b) -> a));
-        ProblemDetail problem = problem(HttpStatus.BAD_REQUEST, "Validation failed");
+        ProblemDetail problem = ProblemDetails.of(HttpStatus.BAD_REQUEST, "Validation failed");
         problem.setProperty("errors", fieldErrors);
-        return problem;
-    }
-
-    private ProblemDetail problem(HttpStatus status, String detail) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
-        Map<String, Object> props = new LinkedHashMap<>();
-        props.put("timestamp", Instant.now().toString());
-        props.forEach(problem::setProperty);
         return problem;
     }
 }

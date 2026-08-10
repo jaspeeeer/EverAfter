@@ -55,6 +55,21 @@ logging:
 
 # Application-specific settings.
 app:
+  rate-limit:
+    # Master switch — off in the test suites (many users/projects get seeded per run and would
+    # otherwise self-throttle). On by default everywhere else.
+    enabled: ${APP_RATE_LIMIT_ENABLED:true}
+    # X-Forwarded-For is client-spoofable unless a trusted reverse proxy strips/overwrites it —
+    # there isn't one configured yet, so this stays false until there is.
+    trust-forwarded-for: ${APP_RATE_LIMIT_TRUST_FORWARDED_FOR:false}
+    public-api:
+      # A couple sharing one RSVP link legitimately generates several hits; looser than auth.
+      limit: ${APP_RATE_LIMIT_PUBLIC_LIMIT:30}
+      window-ms: ${APP_RATE_LIMIT_PUBLIC_WINDOW_MS:60000}
+    auth:
+      # Tighter — this is the brute-force/account-enumeration surface.
+      limit: ${APP_RATE_LIMIT_AUTH_LIMIT:10}
+      window-ms: ${APP_RATE_LIMIT_AUTH_WINDOW_MS:60000}
   attachments:
     # Filesystem root for uploaded contracts/receipts. Point this at a mounted volume in prod;
     # defaults to a subfolder of the OS temp dir for local/dev convenience.
