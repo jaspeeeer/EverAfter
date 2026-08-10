@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ProjectTabs } from "@/components/projects/project-tabs";
+import { ProjectSearch } from "@/components/search/project-search";
 
 export default async function ProjectLayout({
   children,
@@ -61,7 +62,10 @@ export default async function ProjectLayout({
         </Link>
       </div>
 
-      <ProjectTabs projectId={id} />
+      <div className="flex items-center justify-between gap-4 border-b border-border">
+        <ProjectTabs projectId={id} />
+        <ProjectSearch projectId={id} />
+      </div>
 
       <div>{children}</div>
     </div>

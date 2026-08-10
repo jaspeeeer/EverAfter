@@ -18,7 +18,7 @@ export function ProjectTabs({ projectId }: { projectId: string }) {
   ];
 
   return (
-    <nav className="flex gap-1 border-b border-border">
+    <nav className="flex gap-1 overflow-x-auto">
       {tabs.map((tab) => {
         const active =
           tab.href === base ? pathname === base : pathname.startsWith(tab.href);
