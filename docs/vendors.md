@@ -47,6 +47,17 @@ contain items.
 - Admin reports and the platform vendor count treat items as invisible — they're not separate
   "vendors" for those purposes (`vendorRepository...` queries filter `parent is null`).
 
+## Soft delete (`V18`, infrastructure only — no user-facing change yet)
+
+`vendors.deleted_at` (nullable timestamp) plus `@SQLRestriction("deleted_at is null")` on `Vendor`
+excludes a tombstoned row from every existing read with no per-query changes — `findByProjectId`,
+the three admin report aggregates, `countByCategoryId`/`countByDirectoryEntryId`, even
+`AdminService.stats()`'s plain `count()`. `vendor_payments` has no `deleted_at` of its own, so its
+four repository queries carry an **explicit** `p.vendor.deletedAt is null` predicate instead of
+relying on the restriction to propagate through the implicit association join. `VendorService`
+still hard-deletes for now; nothing sets the column yet — see [guests.md](guests.md) for why this
+shipped as its own change ahead of the actual undo feature.
+
 ## Frontend (`/projects/[id]/vendors`)
 
 `components/vendors/vendor-list.tsx`:
@@ -69,5 +80,5 @@ contain items.
 ## Key files
 
 - `backend/.../domain/Vendor.java`, `service/VendorService.java`, `web/VendorController.java`,
-  migration `V11`
+  migrations `V11`/`V18`
 - `frontend/app/actions/vendors.ts`, `components/vendors/vendor-list.tsx`, `lib/vendor-tree.ts`

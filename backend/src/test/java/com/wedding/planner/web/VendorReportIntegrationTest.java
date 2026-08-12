@@ -8,8 +8,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wedding.planner.AbstractIntegrationTest;
+import com.wedding.planner.domain.Vendor;
+import com.wedding.planner.repository.VendorRepository;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -29,6 +33,9 @@ class VendorReportIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private VendorRepository vendorRepository;
 
     private String register(String email, String role) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/register")
@@ -182,6 +189,48 @@ class VendorReportIntegrationTest extends AbstractIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + admin))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.categories[?(@.categoryName == 'Catering')]").doesNotExist());
+    }
+
+    @Test
+    void softDeletedVendorsAreExcludedFromEveryReport() throws Exception {
+        String planner = register("rep-soft-delete-planner@wedding.test", "ROLE_PLANNER");
+        String admin = loginAdmin();
+        String projectId = project(planner, "Rep Soft Delete Wedding", "2027-10-01");
+
+        var body = new HashMap<String, Object>();
+        body.put("name", "Fading Musician");
+        body.put("categoryId", categoryId(planner, "MUSIC"));
+        body.put("booked", true);
+        String vendorId = json(mockMvc.perform(post("/api/projects/" + projectId + "/vendors")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andReturn()).get("id").asText();
+
+        // Live: counted in vendors-by-category.
+        mockMvc.perform(get("/api/admin/reports/vendors-by-category")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.categoryName == 'Music')].vendorCount").value(1));
+
+        Vendor vendor = vendorRepository.findById(UUID.fromString(vendorId)).orElseThrow();
+        vendor.setDeletedAt(Instant.now());
+        vendorRepository.saveAndFlush(vendor);
+
+        // Soft-deleted: gone from every report, same as a hard-deleted vendor always was.
+        mockMvc.perform(get("/api/admin/reports/vendors-by-category")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.categoryName == 'Music')]").doesNotExist());
+        mockMvc.perform(get("/api/admin/reports/in-demand-vendors")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.vendorName == 'Fading Musician')]").doesNotExist());
+        mockMvc.perform(get("/api/admin/reports/booking-conversion")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.categories[?(@.categoryName == 'Music')]").doesNotExist());
     }
 
     @Test

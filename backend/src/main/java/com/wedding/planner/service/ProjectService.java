@@ -91,8 +91,13 @@ public class ProjectService {
     @Transactional
     public void delete(UUID projectId) {
         Project project = findProject(projectId);
-        // Log BEFORE the delete: the FK is ON DELETE CASCADE, so the row disappears with the
-        // project. Recording the delete for its own log-of-record is intentionally moot.
+        // No activity-log entry for the project's own delete: the log-of-record disappears with
+        // the project's cascade anyway (activity_log.project_id is ON DELETE CASCADE), so logging
+        // it would be immediately erased. Deleting tasks/vendors/expenses/guests/timeline_events
+        // is JPA's CascadeType.ALL on Project's five child collections (V1-V5), not a DB cascade —
+        // those five FKs only became ON DELETE CASCADE in V18, added so a project with
+        // soft-deleted children still purges cleanly (@SQLRestriction hides tombstones from JPA's
+        // own collection traversal, so the DB cascade is what actually removes them now).
         projectRepository.delete(project);
     }
 

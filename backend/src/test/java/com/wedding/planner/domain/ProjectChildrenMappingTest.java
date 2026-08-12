@@ -8,7 +8,9 @@ import com.wedding.planner.repository.TaskRepository;
 import com.wedding.planner.repository.VendorCategoryRepository;
 import com.wedding.planner.repository.VendorRepository;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
@@ -114,6 +116,32 @@ class ProjectChildrenMappingTest extends AbstractPostgresContainerTest {
         assertThat(taskRepository.findByProjectId(project.getId())).isEmpty();
         assertThat(vendorRepository.findByProjectId(project.getId())).isEmpty();
         assertThat(expenseRepository.findByProjectId(project.getId())).isEmpty();
+    }
+
+    @Test
+    void deletingProjectWithSoftDeletedChildrenStillCascades() {
+        // Without V18's ON DELETE CASCADE on fk_tasks_project, this would fail with an FK
+        // violation: @SQLRestriction hides the soft-deleted task from the collection fetch
+        // Hibernate uses to cascade the remove, so the DB-level cascade is now what actually
+        // clears the row — JPA's CascadeType.ALL never sees it to issue a DELETE itself.
+        Project project = persistProject("Soft Deleted Cascade Wedding");
+        Task task = new Task("A soft-deleted task", TaskStatus.TODO);
+        task.setDeletedAt(Instant.now());
+        project.addTask(task);
+        em.persistAndFlush(project);
+        UUID taskId = task.getId();
+        em.clear();
+
+        Project reloaded = em.find(Project.class, project.getId());
+        em.remove(reloaded);
+        em.flush();
+        em.clear();
+
+        Number rowsRemaining = (Number) em.getEntityManager()
+                .createNativeQuery("SELECT count(*) FROM tasks WHERE id = ?1")
+                .setParameter(1, taskId)
+                .getSingleResult();
+        assertThat(rowsRemaining.longValue()).isZero();
     }
 
     @Test

@@ -32,6 +32,15 @@ when a regular line is toggled paid, or the sum of a vendor's payments for a man
 roll-up's **Paid** total is `sum(paid_amount)`, so vendor installments show up as partial paid, not
 all-or-nothing.
 
+## Soft delete (`V18`, infrastructure only — no user-facing change yet)
+
+`expenses.deleted_at` (nullable timestamp) plus `@SQLRestriction("deleted_at is null")` on
+`Expense` excludes a tombstoned line from every existing read — `findByProjectId` (and therefore
+`BudgetService.summarize`'s roll-up), `countByCategoryId`, `AdminService.stats()`'s plain
+`count()` — with no per-query changes. `ExpenseService.delete` still hard-deletes for now; nothing
+sets the column yet. See [guests.md](guests.md) for why this shipped as its own change ahead of
+the actual undo feature.
+
 ## Frontend (`/projects/[id]/budget`)
 
 - **Budget tracker card** — Budget / Committed / Paid / Outstanding stats (each with a `formatPercent`

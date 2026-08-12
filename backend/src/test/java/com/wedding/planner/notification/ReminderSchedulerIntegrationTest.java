@@ -21,6 +21,7 @@ import com.wedding.planner.repository.VendorCategoryRepository;
 import com.wedding.planner.repository.VendorPaymentRepository;
 import com.wedding.planner.repository.VendorRepository;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -151,6 +152,52 @@ class ReminderSchedulerIntegrationTest extends AbstractIntegrationTest {
         assertThat(plannerRows).hasSize(1);
         assertThat(plannerRows.get(0).getTitle()).contains("Payment due in 7 days");
         // Couple gets nothing — payment reminders are planner-only.
+        assertThat(readAll(f.ownerId)).isEmpty();
+    }
+
+    @Test
+    void softDeletedTaskGeneratesNoReminder() {
+        Fixture f = seed("sched-soft-task");
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+
+        tx.executeWithoutResult(status -> {
+            Project p = projects.findById(f.projectId).orElseThrow();
+            Task t = new Task("Soft-deleted task", TaskStatus.TODO);
+            t.setProject(p);
+            t.setDueDate(today.plusDays(3));
+            t.setDeletedAt(Instant.now());
+            tasks.saveAndFlush(t);
+        });
+
+        scheduler.run();
+
+        assertThat(readAll(f.plannerId)).isEmpty();
+        assertThat(readAll(f.ownerId)).isEmpty();
+    }
+
+    @Test
+    void softDeletedVendorsPlannedPaymentGeneratesNoReminder() {
+        Fixture f = seed("sched-soft-payment");
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+
+        tx.executeWithoutResult(status -> {
+            Project p = projects.findById(f.projectId).orElseThrow();
+            com.wedding.planner.domain.VendorCategory cat =
+                    vendorCategories.findByActiveTrueOrderBySortOrderAsc().stream()
+                            .findFirst().orElseThrow();
+            com.wedding.planner.domain.Vendor v = new com.wedding.planner.domain.Vendor("Soft Deleted Florist", cat);
+            v.setProject(p);
+            v.setAgreedPrice(new BigDecimal("10000.00"));
+            v.setDeletedAt(Instant.now());
+            v = vendors.saveAndFlush(v);
+            com.wedding.planner.domain.VendorPayment vp = com.wedding.planner.domain.VendorPayment.planned(
+                    v, new BigDecimal("3000.00"), today.plusDays(7), "Down payment");
+            vendorPayments.saveAndFlush(vp);
+        });
+
+        scheduler.run();
+
+        assertThat(readAll(f.plannerId)).isEmpty();
         assertThat(readAll(f.ownerId)).isEmpty();
     }
 

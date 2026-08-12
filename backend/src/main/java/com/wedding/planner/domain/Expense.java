@@ -11,14 +11,17 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
+import org.hibernate.annotations.SQLRestriction;
 
 /**
  * A single line item in a project's budget.
  */
 @Entity
 @Table(name = "expenses")
+@SQLRestriction("deleted_at is null")
 public class Expense {
 
     @Id
@@ -76,6 +79,10 @@ public class Expense {
      */
     @Column(name = "managed", nullable = false)
     private boolean managed = false;
+
+    /** Soft-delete tombstone; null means live — see the {@code @SQLRestriction} on this class. */
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
 
     protected Expense() {
         // Required by JPA.
@@ -153,6 +160,14 @@ public class Expense {
 
     public void setManaged(boolean managed) {
         this.managed = managed;
+    }
+
+    public Instant getDeletedAt() {
+        return deletedAt;
+    }
+
+    public void setDeletedAt(Instant deletedAt) {
+        this.deletedAt = deletedAt;
     }
 
     @Override

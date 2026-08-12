@@ -11,14 +11,17 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
+import org.hibernate.annotations.SQLRestriction;
 
 /**
  * A supplier being considered or booked for a wedding.
  */
 @Entity
 @Table(name = "vendors")
+@SQLRestriction("deleted_at is null")
 public class Vendor {
 
     @Id
@@ -78,6 +81,10 @@ public class Vendor {
             foreignKey = @ForeignKey(name = "fk_vendors_project")
     )
     private Project project;
+
+    /** Soft-delete tombstone; null means live — see the {@code @SQLRestriction} on this class. */
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
 
     protected Vendor() {
         // Required by JPA.
@@ -162,6 +169,14 @@ public class Vendor {
 
     public void setProject(Project project) {
         this.project = project;
+    }
+
+    public Instant getDeletedAt() {
+        return deletedAt;
+    }
+
+    public void setDeletedAt(Instant deletedAt) {
+        this.deletedAt = deletedAt;
     }
 
     @Override

@@ -15,6 +15,15 @@ Nested under the project; all endpoints `canAccess`-gated on `{projectId}`:
 `TaskService` verifies the task belongs to the path's project, so cross-project task IDs 404.
 Statuses: `TODO`, `IN_PROGRESS`, `DONE` (enum `TaskStatus`).
 
+## Soft delete (`V18`, infrastructure only — no user-facing change yet)
+
+`tasks.deleted_at` (nullable timestamp) plus `@SQLRestriction("deleted_at is null")` on `Task`
+excludes a tombstoned task from every existing read — `findByProjectId`, and the reminder
+scheduler's global `findByDueDateInAndStatusNot` sweep (so a "deleted" task can't keep emailing
+due-soon reminders). `TaskService.delete` still hard-deletes for now; nothing sets the column yet.
+See [guests.md](guests.md) for why this shipped as its own change ahead of the actual undo
+feature.
+
 ## Frontend (`/projects/[id]/checklist`)
 
 `components/checklist/checklist-board.tsx`:

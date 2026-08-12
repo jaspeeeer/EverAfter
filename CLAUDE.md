@@ -90,6 +90,21 @@ the admin vendor reports + `totalVendors` stat filter `parent is null` so items 
 counted. New schema change = new `V<n>__*.sql`, never edit an applied migration. `DataInitializer`
 seeds the 3 roles + admin account + starter templates on boot (idempotent).
 
+**Soft delete (`V18`).** `vendors`/`guests`/`expenses`/`tasks` carry a nullable `deleted_at`
+timestamp, and each of those four entities has `@SQLRestriction("deleted_at is null")` — **every
+read against them is implicitly filtered**, including derived finders, JPQL, and even
+`JpaRepository.count()`; you do not add `AndDeletedAtIsNull` to a method name yourself. A new
+finder on one of these four needs no special handling to respect this — the one thing to get
+right is anything that reaches a soft-deletable row through an **implicit association join**
+(e.g. `VendorPaymentRepository` reaching `Vendor` via `p.vendor`), where the restriction's
+propagation isn't guaranteed and the safe move is an **explicit** `...deletedAt is null` predicate
+in the query, not an assumption. The five FKs from tasks/vendors/expenses/guests/timeline_events
+back to `projects` are `ON DELETE CASCADE` as of `V18` specifically so that a project with
+soft-deleted children still purges cleanly — `@SQLRestriction` hides tombstones from JPA's own
+`CascadeType.ALL` collection traversal, so the DB cascade is what actually removes them now.
+Nothing sets `deleted_at` yet outside tests (deletes are still hard); see `docs/guests.md`,
+`docs/vendors.md`, `docs/budget.md`, `docs/checklist.md` for the per-entity notes.
+
 Supabase specifics: connect via the **Session Pooler**
 (`aws-1-ap-northeast-2.pooler.supabase.com:5432`, user `postgres.<project-ref>`,
 `sslmode=require`) — the direct host is IPv6-only and unreachable here. Credentials come from
@@ -111,7 +126,7 @@ gitignored `backend/.env` (loaded by `spring-dotenv`). Keep the Hikari pool smal
 
 ## Testing
 
-- Unit/integration: 65 backend tests. `AbstractIntegrationTest` (full HTTP, MockMvc, own
+- Unit/integration: 135 backend tests. `AbstractIntegrationTest` (full HTTP, MockMvc, own
   Postgres container) vs `AbstractPostgresContainerTest` (`@DataJpaTest` slice, separate pristine
   container — do not share containers; the seeded roles break uniqueness tests).
 - E2E: `frontend/e2e/*.spec.ts`, sequential (one shared backend), unique emails per test.

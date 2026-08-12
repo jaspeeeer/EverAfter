@@ -12,14 +12,17 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
+import org.hibernate.annotations.SQLRestriction;
 
 /**
  * A guest (or household) invited to a wedding, tracked in the guest-list CRM.
  */
 @Entity
 @Table(name = "guests")
+@SQLRestriction("deleted_at is null")
 public class Guest {
 
     @Id
@@ -98,6 +101,10 @@ public class Guest {
             foreignKey = @ForeignKey(name = "fk_guests_project")
     )
     private Project project;
+
+    /** Soft-delete tombstone; null means live — see the {@code @SQLRestriction} on this class. */
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
 
     protected Guest() {
         // Required by JPA.
@@ -248,6 +255,14 @@ public class Guest {
 
     public void setProject(Project project) {
         this.project = project;
+    }
+
+    public Instant getDeletedAt() {
+        return deletedAt;
+    }
+
+    public void setDeletedAt(Instant deletedAt) {
+        this.deletedAt = deletedAt;
     }
 
     @Override
