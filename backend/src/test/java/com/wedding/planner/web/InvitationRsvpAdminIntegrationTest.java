@@ -175,8 +175,9 @@ class InvitationRsvpAdminIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.guestName").value("Alex Jamie"))
                 .andExpect(jsonPath("$.projectName").value("RSVP Wedding"));
 
-        // Unauthenticated respond. Party size is deliberately absent from the request — the
-        // server always resets it to 1 on public RSVP (regardless of what the planner had set).
+        // Unauthenticated respond. Party size is absent from the request, and the project hasn't
+        // opted into guest-controlled party size (default off) — the planner's original value of
+        // 2 is preserved, not reset.
         mockMvc.perform(put("/api/public/rsvp/" + rsvpToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
@@ -184,14 +185,14 @@ class InvitationRsvpAdminIntegrationTest extends AbstractIntegrationTest {
                                 "dietaryNotes", "1 vegan"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.rsvpStatus").value("ATTENDING"))
-                .andExpect(jsonPath("$.partySize").value(1));
+                .andExpect(jsonPath("$.partySize").value(2));
 
-        // The change is visible to the planner — party size reset from the initial 2 to 1.
+        // The change is visible to the planner — party size untouched at 2.
         mockMvc.perform(get("/api/projects/" + projectId + "/guests")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].rsvpStatus").value("ATTENDING"))
-                .andExpect(jsonPath("$[0].partySize").value(1));
+                .andExpect(jsonPath("$[0].partySize").value(2));
     }
 
     @Test
@@ -440,5 +441,139 @@ class InvitationRsvpAdminIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn();
         return json(result).get("token").asText();
+    }
+
+    // --- Invitation page metadata (V19) ---
+
+    @Test
+    void projectVenueAndTimesRoundTripThroughPutAndSurfaceOnPublicRsvp() throws Exception {
+        String planner = register("venue-planner@wedding.test", "ROLE_PLANNER");
+        String projectId = createProject(planner, "Venue Wedding");
+
+        // PUT the invitation-page metadata onto the project.
+        mockMvc.perform(put("/api/projects/" + projectId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name", "Venue Wedding",
+                                "venueName", "Manila Cathedral",
+                                "venueAddress", "Cabildo St, Intramuros, Manila",
+                                "ceremonyTime", "15:00:00",
+                                "receptionTime", "18:30:00"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.venueName").value("Manila Cathedral"))
+                .andExpect(jsonPath("$.venueAddress").value("Cabildo St, Intramuros, Manila"))
+                .andExpect(jsonPath("$.ceremonyTime").value("15:00:00"))
+                .andExpect(jsonPath("$.receptionTime").value("18:30:00"));
+
+        // A guest linked to this project sees the same fields on the public RSVP page.
+        MvcResult guest = mockMvc.perform(post("/api/projects/" + projectId + "/guests")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "firstName", "Guest",
+                                "lastName", "One",
+                                "rsvpStatus", "PENDING"))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String rsvpToken = json(guest).get("rsvpToken").asText();
+
+        mockMvc.perform(get("/api/public/rsvp/" + rsvpToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.venueName").value("Manila Cathedral"))
+                .andExpect(jsonPath("$.venueAddress").value("Cabildo St, Intramuros, Manila"))
+                .andExpect(jsonPath("$.ceremonyTime").value("15:00:00"))
+                .andExpect(jsonPath("$.receptionTime").value("18:30:00"));
+    }
+
+    @Test
+    void publicRsvpVenueFieldsAreNullWhenNotSet() throws Exception {
+        String planner = register("no-venue-planner@wedding.test", "ROLE_PLANNER");
+        String projectId = createProject(planner, "No Venue Wedding");
+
+        MvcResult guest = mockMvc.perform(post("/api/projects/" + projectId + "/guests")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "firstName", "Guest",
+                                "rsvpStatus", "PENDING"))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String rsvpToken = json(guest).get("rsvpToken").asText();
+
+        mockMvc.perform(get("/api/public/rsvp/" + rsvpToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.venueName").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.venueAddress").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.ceremonyTime").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.receptionTime").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    // --- Add-to-calendar (.ics) ---
+
+    @Test
+    void calendarIcsContainsTheWeddingDetailsAndIsKeyedToTheGuestsOwnToken() throws Exception {
+        String planner = register("ics-planner@wedding.test", "ROLE_PLANNER");
+        String projectId = createProject(planner, "ICS Wedding");
+        mockMvc.perform(put("/api/projects/" + projectId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name", "ICS Wedding",
+                                "weddingDate", "2027-06-12",
+                                "venueName", "Manila Cathedral",
+                                "venueAddress", "Cabildo St, Intramuros, Manila",
+                                "ceremonyTime", "15:00:00",
+                                "receptionTime", "18:30:00"))))
+                .andExpect(status().isOk());
+        MvcResult guest = mockMvc.perform(post("/api/projects/" + projectId + "/guests")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "firstName", "Guest", "rsvpStatus", "PENDING"))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String rsvpToken = json(guest).get("rsvpToken").asText();
+
+        MvcResult ics = mockMvc.perform(get("/api/public/rsvp/" + rsvpToken + "/calendar.ics"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        assertThat(ics.getResponse().getContentType()).startsWith("text/calendar");
+        assertThat(ics.getResponse().getHeader(HttpHeaders.CONTENT_DISPOSITION))
+                .contains("wedding.ics");
+        String body = ics.getResponse().getContentAsString();
+        assertThat(body).contains("BEGIN:VCALENDAR");
+        assertThat(body).contains("SUMMARY:ICS Wedding");
+        assertThat(body).contains("DTSTART:20270612T150000");
+        assertThat(body).contains("DTEND:20270612T183000");
+        assertThat(body).contains("LOCATION:Manila Cathedral\\, Cabildo St");
+        assertThat(body).contains("UID:" + rsvpToken + "@wedding-planner");
+        assertThat(body).contains("DESCRIPTION:RSVP:");
+        assertThat(body).contains(rsvpToken);
+    }
+
+    @Test
+    void calendarIcsWithoutAWeddingDateIs400() throws Exception {
+        String planner = register("ics-nodate-planner@wedding.test", "ROLE_PLANNER");
+        String projectId = createProject(planner, "No Date Wedding");
+        MvcResult guest = mockMvc.perform(post("/api/projects/" + projectId + "/guests")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "firstName", "Guest", "rsvpStatus", "PENDING"))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String rsvpToken = json(guest).get("rsvpToken").asText();
+
+        mockMvc.perform(get("/api/public/rsvp/" + rsvpToken + "/calendar.ics"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void calendarIcsForAnUnknownTokenIs404() throws Exception {
+        mockMvc.perform(
+                        get("/api/public/rsvp/00000000-0000-0000-0000-000000000000/calendar.ics"))
+                .andExpect(status().isNotFound());
     }
 }

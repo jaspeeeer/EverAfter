@@ -41,11 +41,16 @@ export async function submitRsvpAction(
 ): Promise<ActionState> {
   const rsvpStatus = String(formData.get("rsvpStatus") ?? "PENDING") as RsvpStatus;
   const dietaryNotes = String(formData.get("dietaryNotes") ?? "").trim() || null;
+  // The field only renders when the project opted into guest-controlled party size, so its
+  // absence here means "not applicable" — the backend ignores partySize when the project hasn't
+  // opted in either way, but omitting it keeps the request body honest.
+  const partySizeRaw = formData.get("partySize");
+  const partySize = partySizeRaw !== null ? Number(partySizeRaw) : null;
 
   try {
     await apiFetch<RsvpViewResponse>(`/api/public/rsvp/${rsvpToken}`, {
       method: "PUT",
-      body: { rsvpStatus, dietaryNotes },
+      body: { rsvpStatus, dietaryNotes, partySize },
     });
   } catch (error) {
     return { error: error instanceof ApiError ? error.message : "Something went wrong." };

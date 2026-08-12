@@ -55,6 +55,11 @@ logging:
 
 # Application-specific settings.
 app:
+  # The guest-facing frontend's own origin — used only to build absolute links inside generated
+  # content the backend never serves directly to a browser (e.g. the "RSVP: <url>" line in the
+  # invitation's .ics file). Requests to :8080 are always proxied through the Next.js server, so
+  # the backend can't reliably derive this from an inbound Host header.
+  frontend-base-url: ${APP_FRONTEND_BASE_URL:http://localhost:3000}
   rate-limit:
     # Master switch — off in the test suites (many users/projects get seeded per run and would
     # otherwise self-throttle). On by default everywhere else.

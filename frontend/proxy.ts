@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { TOKEN_COOKIE } from "@/lib/constants";
 
-const PUBLIC_PATHS = ["/login", "/register", "/rsvp"];
+const PUBLIC_PATHS = ["/login", "/register", "/rsvp", "/api/public"];
 
 /**
  * Coarse route protection at the edge (Next 16 "proxy", formerly "middleware"): requests without

@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { humanizeEnum } from "@/lib/format";
@@ -91,6 +92,26 @@ export function RsvpForm({
               </label>
             ))}
           </fieldset>
+
+          {rsvp.allowGuestPartySize && (
+            <div className="space-y-1.5">
+              <Label htmlFor="partySize">Party size (including you)</Label>
+              <Input
+                id="partySize"
+                name="partySize"
+                type="number"
+                min={1}
+                max={rsvp.maxPartySize ?? undefined}
+                defaultValue={rsvp.partySize}
+                className="max-w-32"
+              />
+              {rsvp.maxPartySize && (
+                <p className="text-xs text-muted-foreground">
+                  Up to {rsvp.maxPartySize} {rsvp.maxPartySize === 1 ? "guest" : "guests"}.
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label htmlFor="dietaryNotes">Dietary needs (optional)</Label>

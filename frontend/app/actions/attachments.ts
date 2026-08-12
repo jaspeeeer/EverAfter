@@ -34,6 +34,11 @@ function ownerPathSegment(ownerType: AttachmentOwnerType): string {
       return "vendor-payments";
     case "EXPENSE":
       return "expenses";
+    case "PROJECT":
+      // A project's cover photo has its own dedicated endpoint/action
+      // (setProjectCoverAction, POST /api/projects/{id}/cover) — it never goes through this
+      // generic vendor/vendor-payment/expense attachment upload path.
+      throw new Error("Project cover uploads use setProjectCoverAction, not this action.");
   }
 }
 

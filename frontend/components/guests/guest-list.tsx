@@ -419,7 +419,7 @@ function GuestRow({
   const copyRsvpLink = async () => {
     const link = `${window.location.origin}/rsvp/${guest.rsvpToken}`;
     await navigator.clipboard.writeText(link);
-    toast("RSVP link copied — share it with this guest");
+    toast("Invitation link copied — share it with this guest");
   };
 
   const remove = () => {
@@ -478,8 +478,8 @@ function GuestRow({
         type="button"
         onClick={copyRsvpLink}
         disabled={pending}
-        aria-label={`Copy RSVP link for ${guestFullName(guest)}`}
-        title="Copy public RSVP link"
+        aria-label={`Copy invitation link for ${guestFullName(guest)}`}
+        title="Copy invitation link"
         className="text-muted-foreground transition-colors hover:text-primary"
       >
         <Link2 className="size-4" />

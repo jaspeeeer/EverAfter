@@ -54,6 +54,16 @@ export interface ProjectResponse {
   plannerEmail: string | null;
   ownerId: string | null;
   ownerEmail: string | null;
+  /** Public invitation-page metadata (V19). */
+  venueName: string | null;
+  venueAddress: string | null;
+  /** "HH:mm:ss" from the backend's LocalTime, nullable. */
+  ceremonyTime: string | null;
+  receptionTime: string | null;
+  /** When true, guests may set their own party size on the public RSVP form. Default false. */
+  allowGuestPartySize: boolean;
+  maxPartySize: number | null;
+  coverAttachmentId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -156,6 +166,16 @@ export interface RsvpViewResponse {
   rsvpStatus: RsvpStatus;
   partySize: number;
   dietaryNotes: string | null;
+  /** Public invitation-page fields (V19). */
+  venueName: string | null;
+  venueAddress: string | null;
+  ceremonyTime: string | null;
+  receptionTime: string | null;
+  /** When true, the RSVP form shows a party-size input the guest may set. */
+  allowGuestPartySize: boolean;
+  maxPartySize: number | null;
+  /** True when the project has a cover photo, streamed from /api/public/rsvp/{token}/cover. */
+  hasCover: boolean;
 }
 
 export interface InvitationResponse {
@@ -339,7 +359,7 @@ export interface ActivityLogResponse {
 
 // --- Attachments ---
 
-export type AttachmentOwnerType = "VENDOR" | "VENDOR_PAYMENT" | "EXPENSE";
+export type AttachmentOwnerType = "VENDOR" | "VENDOR_PAYMENT" | "EXPENSE" | "PROJECT";
 
 export interface AttachmentResponse {
   id: string;

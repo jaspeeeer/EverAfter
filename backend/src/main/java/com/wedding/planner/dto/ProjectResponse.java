@@ -5,6 +5,7 @@ import com.wedding.planner.domain.User;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.UUID;
 
 public record ProjectResponse(
@@ -16,6 +17,13 @@ public record ProjectResponse(
         String plannerEmail,
         UUID ownerId,
         String ownerEmail,
+        String venueName,
+        String venueAddress,
+        LocalTime ceremonyTime,
+        LocalTime receptionTime,
+        boolean allowGuestPartySize,
+        Integer maxPartySize,
+        UUID coverAttachmentId,
         Instant createdAt,
         Instant updatedAt) {
 
@@ -31,6 +39,13 @@ public record ProjectResponse(
                 planner != null ? planner.getEmail() : null,
                 owner != null ? owner.getId() : null,
                 owner != null ? owner.getEmail() : null,
+                project.getVenueName(),
+                project.getVenueAddress(),
+                project.getCeremonyTime(),
+                project.getReceptionTime(),
+                project.isAllowGuestPartySize(),
+                project.getMaxPartySize(),
+                project.getCoverAttachmentId(),
                 project.getCreatedAt(),
                 project.getUpdatedAt());
     }

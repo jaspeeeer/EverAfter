@@ -82,6 +82,11 @@ PUT replaces the whole guest — every update call site must send **all** fields
 `lastName`/`title`/`gender`, `tableNumber`, and the four classification fields), or quick actions
 like the RSVP select will null out the rest.
 
+`partySize` also has an opt-in public-write path: a project can let guests set it themselves on
+the public RSVP form (`project.allowGuestPartySize`, off by default) — see "Guest-controlled
+party size" in [rsvp.md](rsvp.md). This is separate from the planner-side editor above, which can
+always set party size regardless of the toggle.
+
 ## Key files
 
 - `backend/.../domain/{Guest,Gender,GuestRole,GuestPriority,RelatedTo,GuestRelationship}.java`,

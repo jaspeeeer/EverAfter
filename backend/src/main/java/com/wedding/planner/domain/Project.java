@@ -17,6 +17,7 @@ import jakarta.persistence.UniqueConstraint;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -54,6 +55,27 @@ public class Project {
 
     @Column(name = "total_budget", precision = 12, scale = 2)
     private BigDecimal totalBudget;
+
+    @Column(name = "venue_name", length = 200)
+    private String venueName;
+
+    @Column(name = "venue_address", length = 500)
+    private String venueAddress;
+
+    @Column(name = "ceremony_time")
+    private LocalTime ceremonyTime;
+
+    @Column(name = "reception_time")
+    private LocalTime receptionTime;
+
+    @Column(name = "allow_guest_party_size", nullable = false)
+    private boolean allowGuestPartySize = false;
+
+    @Column(name = "max_party_size")
+    private Integer maxPartySize;
+
+    @Column(name = "cover_attachment_id")
+    private UUID coverAttachmentId;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(
@@ -172,6 +194,62 @@ public class Project {
 
     public void setTotalBudget(BigDecimal totalBudget) {
         this.totalBudget = totalBudget;
+    }
+
+    public String getVenueName() {
+        return venueName;
+    }
+
+    public void setVenueName(String venueName) {
+        this.venueName = venueName;
+    }
+
+    public String getVenueAddress() {
+        return venueAddress;
+    }
+
+    public void setVenueAddress(String venueAddress) {
+        this.venueAddress = venueAddress;
+    }
+
+    public LocalTime getCeremonyTime() {
+        return ceremonyTime;
+    }
+
+    public void setCeremonyTime(LocalTime ceremonyTime) {
+        this.ceremonyTime = ceremonyTime;
+    }
+
+    public LocalTime getReceptionTime() {
+        return receptionTime;
+    }
+
+    public void setReceptionTime(LocalTime receptionTime) {
+        this.receptionTime = receptionTime;
+    }
+
+    public boolean isAllowGuestPartySize() {
+        return allowGuestPartySize;
+    }
+
+    public void setAllowGuestPartySize(boolean allowGuestPartySize) {
+        this.allowGuestPartySize = allowGuestPartySize;
+    }
+
+    public Integer getMaxPartySize() {
+        return maxPartySize;
+    }
+
+    public void setMaxPartySize(Integer maxPartySize) {
+        this.maxPartySize = maxPartySize;
+    }
+
+    public UUID getCoverAttachmentId() {
+        return coverAttachmentId;
+    }
+
+    public void setCoverAttachmentId(UUID coverAttachmentId) {
+        this.coverAttachmentId = coverAttachmentId;
     }
 
     public User getPlanner() {

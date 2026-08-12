@@ -58,8 +58,10 @@ renamed middleware) does coarse cookie-presence routing; real validation is `req
 `GET /api/auth/me`. Do NOT redirect token-bearing requests away from `/login` in the proxy — the
 proxy can't verify tokens and an expired cookie would loop.
 
-Public, tokenized endpoints live under `/api/public/**` (permitAll): per-guest RSVP
-(`guests.rsvp_token`) and invitation preview (`invitations.token`). They expose no internal IDs.
+Public, tokenized endpoints live under `/api/public/**` (permitAll): per-guest RSVP/invitation
+(`guests.rsvp_token`, `docs/rsvp.md`) and the couple onboarding invite preview
+(`invitations.token`, `docs/couple-onboarding-invites.md` — a different "invitation" from the
+guest-facing one). They expose no internal IDs.
 
 ### Database
 Flyway owns the schema (`backend/src/main/resources/db/migration/`); Hibernate runs
@@ -113,6 +115,13 @@ physically exists); see `docs/undo-delete.md` for the real bug this caused
 (`Expense.vendor` → a soft-deleted `Vendor`) before it was caught. See `docs/undo-delete.md` first,
 then `docs/guests.md`, `docs/vendors.md`, `docs/budget.md`, `docs/checklist.md` for the per-entity
 notes.
+
+**Invitation-page metadata (`V19`).** `projects` gained `venue_name`, `venue_address`,
+`ceremony_time`, `reception_time` (all nullable) so the public RSVP page can show more than a
+bare date — edited via the new **Settings** tab (`docs/project-settings.md`) under the existing
+`canAccess` rule (no new permission check: admin/managing planner/owning couple could already
+`PUT` a project). `V19` also added `allow_guest_party_size`/`max_party_size`/
+`cover_attachment_id`, unused columns for later phases (see `docs/rsvp.md`).
 
 Supabase specifics: connect via the **Session Pooler**
 (`aws-1-ap-northeast-2.pooler.supabase.com:5432`, user `postgres.<project-ref>`,

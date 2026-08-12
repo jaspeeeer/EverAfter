@@ -3,8 +3,10 @@ package com.wedding.planner.service;
 import com.wedding.planner.audit.ActivityLogService;
 import com.wedding.planner.domain.ActivityAction;
 import com.wedding.planner.domain.ActivityEntityType;
+import com.wedding.planner.domain.AttachmentOwnerType;
 import com.wedding.planner.domain.Project;
 import com.wedding.planner.domain.User;
+import com.wedding.planner.dto.AttachmentDtos.AttachmentResponse;
 import com.wedding.planner.dto.ProjectRequest;
 import com.wedding.planner.dto.ProjectResponse;
 import com.wedding.planner.exception.BadRequestException;
@@ -16,6 +18,7 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Project CRUD plus role-scoped listing.
@@ -32,12 +35,14 @@ public class ProjectService {
 
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
+    private final AttachmentService attachmentService;
     private final ActivityLogService activityLog;
 
     public ProjectService(ProjectRepository projectRepository, UserRepository userRepository,
-                          ActivityLogService activityLog) {
+                          AttachmentService attachmentService, ActivityLogService activityLog) {
         this.projectRepository = projectRepository;
         this.userRepository = userRepository;
+        this.attachmentService = attachmentService;
         this.activityLog = activityLog;
     }
 
@@ -48,6 +53,12 @@ public class ProjectService {
         Project project = new Project(request.name(), planner);
         project.setWeddingDate(request.weddingDate());
         project.setTotalBudget(request.totalBudget());
+        project.setVenueName(request.venueName());
+        project.setVenueAddress(request.venueAddress());
+        project.setCeremonyTime(request.ceremonyTime());
+        project.setReceptionTime(request.receptionTime());
+        project.setAllowGuestPartySize(request.allowGuestPartySize());
+        project.setMaxPartySize(request.maxPartySize());
         attachOwnerIfPresent(project, request.ownerEmail());
 
         Project saved = projectRepository.save(project);
@@ -83,8 +94,56 @@ public class ProjectService {
         project.setName(request.name());
         project.setWeddingDate(request.weddingDate());
         project.setTotalBudget(request.totalBudget());
+        project.setVenueName(request.venueName());
+        project.setVenueAddress(request.venueAddress());
+        project.setCeremonyTime(request.ceremonyTime());
+        project.setReceptionTime(request.receptionTime());
+        project.setAllowGuestPartySize(request.allowGuestPartySize());
+        project.setMaxPartySize(request.maxPartySize());
         activityLog.record(projectId, ActivityEntityType.PROJECT, projectId,
                 ActivityAction.UPDATE, "Updated project details");
+        return ProjectResponse.from(project);
+    }
+
+    /**
+     * Sets (or replaces) the project's cover photo. A project has exactly one cover — any prior
+     * one is hard-deleted (file + row) once the new one is in place, so there's never an orphan
+     * and never two "current" covers.
+     */
+    @Transactional
+    public ProjectResponse setCover(UUID projectId, MultipartFile file, UUID uploaderId) {
+        Project project = findProject(projectId);
+        UUID previousCoverId = project.getCoverAttachmentId();
+
+        AttachmentResponse uploaded =
+                attachmentService.upload(projectId, AttachmentOwnerType.PROJECT, projectId, file, uploaderId);
+        project.setCoverAttachmentId(uploaded.id());
+
+        if (previousCoverId != null) {
+            attachmentService.delete(projectId, previousCoverId);
+        }
+
+        activityLog.record(projectId, ActivityEntityType.PROJECT, projectId,
+                ActivityAction.UPDATE, "Updated project cover photo");
+        return ProjectResponse.from(project);
+    }
+
+    @Transactional
+    public ProjectResponse removeCover(UUID projectId) {
+        Project project = findProject(projectId);
+        UUID coverId = project.getCoverAttachmentId();
+        if (coverId == null) {
+            throw ResourceNotFoundException.of("Project cover", projectId);
+        }
+        // Clear the FK before deleting the attachment row it points to — Hibernate flushes
+        // updates ahead of deletes within the same transaction, so the FK's own
+        // ON DELETE SET NULL is never actually exercised here, but nulling explicitly keeps this
+        // correct regardless of flush ordering.
+        project.setCoverAttachmentId(null);
+        attachmentService.delete(projectId, coverId);
+
+        activityLog.record(projectId, ActivityEntityType.PROJECT, projectId,
+                ActivityAction.UPDATE, "Removed project cover photo");
         return ProjectResponse.from(project);
     }
 

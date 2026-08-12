@@ -1,4 +1,10 @@
-# Couple Invitations
+# Couple Onboarding Invites
+
+> **Not to be confused with a guest's wedding invitation** (`/rsvp/[token]`, see
+> [rsvp.md](rsvp.md)) — that's a public, no-login page each guest opens with their own
+> `rsvp_token` to RSVP; it has no entity of its own. This page is about the *other* "invitation" in
+> this codebase: the one-time link a planner sends the couple so they can create an account and
+> take ownership of their own project.
 
 Lets a planner hand a project to the couple who'll own it: issue a token link → the couple
 registers through it → their new account is atomically attached as the project owner.
@@ -8,7 +14,7 @@ registers through it → their new account is atomically attached as the project
 1. **Issue** — on the project Overview (visible to planner/admin while the project has no
    owner), enter the couple's email → `POST /api/projects/{id}/invitations` (**`canManage`**
    gate: invitations carry the secret registration token, so couples/outsiders can't see them).
-2. **Share** — the card lists invites with status and a **Copy link** button:
+2. **Share** — the card lists invites with status and a **Copy onboarding link** button:
    `<origin>/register?invite=<token>`. There is no SMTP integration; delivery is manual by
    design (a mail provider would be a follow-up).
 3. **Accept** — the register page fetches `GET /api/public/invitations/{token}` (public,

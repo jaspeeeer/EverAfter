@@ -21,8 +21,12 @@ import { useTableControls } from "@/lib/use-table-controls";
 import type { InvitationResponse } from "@/lib/types";
 
 /**
- * Planner-facing card: issue a couple invitation and copy the resulting register link. Shown on
- * the project overview while the project has no owning couple.
+ * Planner-facing card: issue a couple onboarding invite and copy the resulting register link.
+ * Shown on the project overview while the project has no owning couple.
+ *
+ * Not to be confused with the guest-facing wedding invitation (`/rsvp/[token]`,
+ * `RsvpForm`/`GuestList`'s "Copy invitation link") — this is the couple's own account-creation
+ * link, issued once per project.
  */
 export function InviteCoupleCard({
   projectId,
@@ -46,23 +50,24 @@ export function InviteCoupleCard({
   });
 
   useEffect(() => {
-    if (state.ok) toast("Invitation created — copy the link below");
+    if (state.ok) toast("Onboarding invite created — copy the link below");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
   const copyLink = async (token: string) => {
     await navigator.clipboard.writeText(`${window.location.origin}/register?invite=${token}`);
-    toast("Invite link copied — send it to the couple");
+    toast("Onboarding link copied — send it to the couple");
   };
 
   return (
     <Card className="lg:col-span-3">
       <CardHeader>
         <Mail className="size-5 text-primary" />
-        <CardTitle>Invite the couple</CardTitle>
+        <CardTitle>Couple onboarding invite</CardTitle>
         <CardDescription>
           Send the couple a link — when they register with it, this project becomes theirs to
-          view and edit.
+          view and edit. (This is separate from a guest&apos;s own wedding invitation — see the
+          Guests tab.)
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -123,7 +128,7 @@ export function InviteCoupleCard({
                           onClick={() => copyLink(invitation.token)}
                         >
                           <Copy />
-                          Copy link
+                          Copy onboarding link
                         </Button>
                       </>
                     )}

@@ -9,6 +9,7 @@ import com.wedding.planner.dto.GuestRequest;
 import com.wedding.planner.dto.GuestResponse;
 import com.wedding.planner.dto.RsvpDtos.RsvpUpdateRequest;
 import com.wedding.planner.dto.RsvpDtos.RsvpViewResponse;
+import com.wedding.planner.exception.BadRequestException;
 import com.wedding.planner.exception.ResourceNotFoundException;
 import com.wedding.planner.repository.GuestRepository;
 import com.wedding.planner.repository.ProjectRepository;
@@ -146,14 +147,38 @@ public class GuestService {
         return RsvpViewResponse.from(requireByRsvpToken(token));
     }
 
-    /** Lets the invitee update only their own RSVP fields — never name/table/contact. */
+    /**
+     * Resolves the project id behind an RSVP token — used only to stream the project's cover
+     * photo ({@code GET /api/public/rsvp/{token}/cover}) without widening the public DTO to
+     * expose any id directly.
+     */
+    @Transactional(readOnly = true)
+    public UUID projectIdByRsvpToken(UUID token) {
+        return requireByRsvpToken(token).getProject().getId();
+    }
+
+    /**
+     * Lets the invitee update only their own RSVP fields — never name/table/contact.
+     *
+     * <p>Party size is only writable here when the project has opted in
+     * ({@code allowGuestPartySize}, default off). When it's off, {@code request.partySize()} is
+     * ignored outright and the guest's existing value is left as-is — previously this method
+     * unconditionally reset party size to 1 on every submission, silently clobbering whatever the
+     * planner had set even when the toggle didn't exist yet to opt out of it.
+     */
     @Transactional
     public RsvpViewResponse respondByRsvpToken(UUID token, RsvpUpdateRequest request) {
         Guest guest = requireByRsvpToken(token);
+        Project project = guest.getProject();
         guest.setRsvpStatus(request.rsvpStatus());
-        // Party size is server-authoritative on the public form; guests don't get to set it.
-        guest.setPartySize(1);
         guest.setDietaryNotes(request.dietaryNotes());
+        if (project.isAllowGuestPartySize() && request.partySize() != null) {
+            Integer max = project.getMaxPartySize();
+            if (max != null && request.partySize() > max) {
+                throw new BadRequestException("Party size cannot exceed " + max + ".");
+            }
+            guest.setPartySize(request.partySize());
+        }
         return RsvpViewResponse.from(guest);
     }
 

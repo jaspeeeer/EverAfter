@@ -132,6 +132,27 @@ public class AttachmentService {
         }
     }
 
+    /**
+     * Streams a project's cover photo for the public invitation page — keyed by {@code
+     * projectId} rather than an attachment id, since the public RSVP surface never learns the
+     * attachment's own id (see {@code RsvpDtos.RsvpViewResponse#hasCover}).
+     */
+    @Transactional(readOnly = true)
+    public Download downloadProjectCover(UUID projectId) {
+        Project project = requireProject(projectId);
+        UUID coverId = project.getCoverAttachmentId();
+        if (coverId == null) {
+            throw ResourceNotFoundException.of("Project cover", projectId);
+        }
+        Attachment attachment = attachmentRepository.findById(coverId)
+                .orElseThrow(() -> ResourceNotFoundException.of("Project cover", projectId));
+        try {
+            return new Download(attachment, storage.read(attachment.getStorageKey()));
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to read attachment", e);
+        }
+    }
+
     @Transactional
     public void delete(UUID projectId, UUID attachmentId) {
         Attachment attachment = requireAttachmentInProject(projectId, attachmentId);
@@ -210,6 +231,12 @@ public class AttachmentService {
                         .orElseThrow(() -> ResourceNotFoundException.of("Expense", ownerId));
                 requireSameProject(expense.getProject().getId(), projectId, "Expense", ownerId);
                 yield "expense \"" + expense.getDescription() + "\"";
+            }
+            case PROJECT -> {
+                // The "owner" is the project itself — ownerId is always projectId by construction
+                // (see ProjectService.setCover), so this is a defence-in-depth check, not a lookup.
+                requireSameProject(ownerId, projectId, "Project", ownerId);
+                yield "the project cover photo";
             }
         };
     }

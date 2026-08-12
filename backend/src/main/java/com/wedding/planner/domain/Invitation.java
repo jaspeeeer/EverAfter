@@ -18,8 +18,13 @@ import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
 
 /**
- * An invitation from a planner to a couple: when someone registers with the invitation's token,
- * they become the owning couple of the project.
+ * A <strong>couple onboarding invite</strong> from a planner to a couple: when someone registers
+ * with the invitation's token, they become the owning couple of the project.
+ *
+ * <p>Not to be confused with the public, no-login <em>wedding invitation</em> a guest opens via
+ * their own {@code rsvp_token} (see {@code Guest#rsvpToken}, {@code PublicController},
+ * {@code docs/rsvp.md}) — that page has no entity of its own; it's just what the RSVP flow is
+ * called in the UI. This class is the couple's own onboarding link, issued once per project.
  */
 @Entity
 @Table(name = "invitations")

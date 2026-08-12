@@ -20,7 +20,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Project endpoints. Fine-grained data isolation is enforced with {@code @PreAuthorize} against
@@ -76,5 +78,19 @@ public class ProjectController {
     @PreAuthorize("@projectSecurity.canAccess(#projectId, authentication)")
     public BudgetSummaryResponse budget(@PathVariable UUID projectId) {
         return budgetService.summarize(projectId);
+    }
+
+    @PostMapping("/{projectId}/cover")
+    @PreAuthorize("@projectSecurity.canAccess(#projectId, authentication)")
+    public ProjectResponse setCover(@PathVariable UUID projectId,
+                                    @RequestPart("file") MultipartFile file,
+                                    @AuthenticationPrincipal AppUserPrincipal principal) {
+        return projectService.setCover(projectId, file, principal.getId());
+    }
+
+    @DeleteMapping("/{projectId}/cover")
+    @PreAuthorize("@projectSecurity.canAccess(#projectId, authentication)")
+    public ProjectResponse removeCover(@PathVariable UUID projectId) {
+        return projectService.removeCover(projectId);
     }
 }

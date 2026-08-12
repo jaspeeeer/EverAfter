@@ -1,13 +1,14 @@
 # Attachments
 
-Files (contracts, receipts, quotes) hung off a vendor, a vendor payment, or an expense.
+Files (contracts, receipts, quotes) hung off a vendor, a vendor payment, or an expense — plus a
+project's own cover photo (see below).
 
 ## Data model
 
 `attachments` (Flyway `V16`): polymorphic owner reference — `(owner_type, owner_id)` — because a
-single SQL column can't FK to three tables (`VENDOR` / `VENDOR_PAYMENT` / `EXPENSE`, see
-`AttachmentOwnerType`). `project_id` is denormalized alongside the owner reference so RBAC stays a
-cheap indexed lookup and `ON DELETE CASCADE` from `projects` sweeps orphan rows on project
+single SQL column can't FK to four tables (`VENDOR` / `VENDOR_PAYMENT` / `EXPENSE` / `PROJECT`,
+see `AttachmentOwnerType`). `project_id` is denormalized alongside the owner reference so RBAC
+stays a cheap indexed lookup and `ON DELETE CASCADE` from `projects` sweeps orphan rows on project
 deletion. Owner-side cleanup — deleting a vendor, payment, or expense must not leave orphaned
 attachment rows/files behind — is enforced application-side (there's no FK to enforce it):
 `VendorService.delete` clears a vendor's own attachments *and* every payment's attachments before
@@ -15,6 +16,12 @@ deleting the vendor (the DB's `ON DELETE CASCADE` on `vendor_payments` would oth
 payment rows without touching their attachments); `VendorService.deletePayment` and
 `ExpenseService.delete` each clear their own single owner's attachments. All three call
 `AttachmentService.deleteAllFor`.
+
+**`PROJECT` is the odd one out (`V19`).** Every other owner type can have any number of
+attachments; a project has **at most one** (its cover photo), tracked via a dedicated
+`projects.cover_attachment_id` FK rather than the generic list query — `ProjectService.setCover`
+hard-deletes the prior cover once a new one lands, so there's never more than one live row for a
+given project. See [project-cover.md](project-cover.md) for the full feature.
 
 Stored bytes live outside Postgres: `AttachmentStorage` (filesystem impl:
 `FilesystemAttachmentStorage`) writes under `app.attachments.storage-root`
