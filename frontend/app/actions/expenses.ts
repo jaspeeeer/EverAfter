@@ -104,11 +104,34 @@ export async function updateExpenseAction(
 export async function deleteExpenseAction(
   projectId: string,
   expenseId: string,
-): Promise<void> {
-  const token = await getToken();
-  await apiFetch(`/api/projects/${projectId}/expenses/${expenseId}`, {
-    method: "DELETE",
-    token,
-  });
-  revalidateBudget(projectId);
+): Promise<{ error?: string }> {
+  try {
+    const token = await getToken();
+    await apiFetch(`/api/projects/${projectId}/expenses/${expenseId}`, {
+      method: "DELETE",
+      token,
+    });
+    revalidateBudget(projectId);
+    return {};
+  } catch (error) {
+    return { error: error instanceof ApiError ? error.message : "Something went wrong." };
+  }
+}
+
+/** Reverses a delete within its undo window. */
+export async function restoreExpenseAction(
+  projectId: string,
+  expenseId: string,
+): Promise<{ error?: string }> {
+  try {
+    const token = await getToken();
+    await apiFetch(`/api/projects/${projectId}/expenses/${expenseId}/restore`, {
+      method: "POST",
+      token,
+    });
+    revalidateBudget(projectId);
+    return {};
+  } catch (error) {
+    return { error: error instanceof ApiError ? error.message : "Something went wrong." };
+  }
 }

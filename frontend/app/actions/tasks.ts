@@ -60,11 +60,34 @@ export async function updateTaskAction(
 export async function deleteTaskAction(
   projectId: string,
   taskId: string,
-): Promise<void> {
-  const token = await getToken();
-  await apiFetch(`/api/projects/${projectId}/tasks/${taskId}`, {
-    method: "DELETE",
-    token,
-  });
-  revalidatePath(`/projects/${projectId}/checklist`);
+): Promise<{ error?: string }> {
+  try {
+    const token = await getToken();
+    await apiFetch(`/api/projects/${projectId}/tasks/${taskId}`, {
+      method: "DELETE",
+      token,
+    });
+    revalidatePath(`/projects/${projectId}/checklist`);
+    return {};
+  } catch (error) {
+    return { error: error instanceof ApiError ? error.message : "Something went wrong." };
+  }
+}
+
+/** Reverses a delete within its undo window. */
+export async function restoreTaskAction(
+  projectId: string,
+  taskId: string,
+): Promise<{ error?: string }> {
+  try {
+    const token = await getToken();
+    await apiFetch(`/api/projects/${projectId}/tasks/${taskId}/restore`, {
+      method: "POST",
+      token,
+    });
+    revalidatePath(`/projects/${projectId}/checklist`);
+    return {};
+  } catch (error) {
+    return { error: error instanceof ApiError ? error.message : "Something went wrong." };
+  }
 }

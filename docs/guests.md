@@ -35,14 +35,16 @@ which are ever exposed on the public RSVP surface (`RsvpDtos`/`PublicController`
   Pastor, …) admins can rename/add to/deactivate at `/admin/guest-roles`
   (`GET /api/guest-roles` public-active-list, `/api/admin/guest-roles` admin CRUD).
 
-**Soft delete (`V18`, infrastructure only — no user-facing change yet).** `guests.deleted_at`
-(nullable timestamp) plus `@SQLRestriction("deleted_at is null")` on `Guest` means every existing
-read — `findByProjectId`, `findByRsvpToken`, `countByRoleId`, even `AdminService.stats()`'s plain
-`count()` — transparently excludes a tombstoned row with no per-query changes.
-`GuestService.delete` still hard-deletes for now; nothing sets the column yet. This landed as its
-own change, proven against the full existing test suite with zero test modifications, ahead of the
-undo/restore feature that will actually set it — see the migration's header comment for why a
-DB-level behavior shift under every read needed to ship (and be verified) alone first.
+**Soft delete + undo (`V18`).** `guests.deleted_at` (nullable timestamp) plus
+`@SQLRestriction("deleted_at is null")` on `Guest` means every existing read —
+`findByProjectId`, `findByRsvpToken`, `countByRoleId`, even `AdminService.stats()`'s plain
+`count()` — transparently excludes a tombstoned row with no per-query changes. `GuestService.delete`
+stamps `deletedAt` instead of removing the row; `POST …/guests/{guestId}/restore` reverses it (a
+native `UPDATE … WHERE deleted_at IS NOT NULL` — `@SQLRestriction` hides the row from the normal
+`findById` a restore would otherwise use to load it). The frontend's delete button surfaces an
+**Undo** action in the confirmation toast (`components/ui/toast.tsx`'s `action` option, ~8s
+window) that calls the restore endpoint. See [undo-delete.md](undo-delete.md) for the shared
+mechanics across all four soft-deletable entities.
 
 ## API
 

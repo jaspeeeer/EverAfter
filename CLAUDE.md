@@ -102,8 +102,17 @@ in the query, not an assumption. The five FKs from tasks/vendors/expenses/guests
 back to `projects` are `ON DELETE CASCADE` as of `V18` specifically so that a project with
 soft-deleted children still purges cleanly — `@SQLRestriction` hides tombstones from JPA's own
 `CascadeType.ALL` collection traversal, so the DB cascade is what actually removes them now.
-Nothing sets `deleted_at` yet outside tests (deletes are still hard); see `docs/guests.md`,
-`docs/vendors.md`, `docs/budget.md`, `docs/checklist.md` for the per-entity notes.
+`{Vendor,Guest,Expense,Task}Service.delete` stamps `deletedAt` instead of removing the row, and
+`POST …/{id}/restore` reverses it via a **native** `@Modifying` query (native bypasses
+`@SQLRestriction`, which is exactly why a plain `findById`-based restore can't work — the row is
+invisible to it). The frontend surfaces this as an **Undo** action in the delete confirmation
+toast, no separate trash UI. A soft-deletable entity referenced elsewhere via a nullable
+`@ManyToOne` needs its own explicit unmap on delete if that reference used to clear itself for
+free via a DB-level `ON DELETE SET NULL` — a soft delete never fires that trigger (the row still
+physically exists); see `docs/undo-delete.md` for the real bug this caused
+(`Expense.vendor` → a soft-deleted `Vendor`) before it was caught. See `docs/undo-delete.md` first,
+then `docs/guests.md`, `docs/vendors.md`, `docs/budget.md`, `docs/checklist.md` for the per-entity
+notes.
 
 Supabase specifics: connect via the **Session Pooler**
 (`aws-1-ap-northeast-2.pooler.supabase.com:5432`, user `postgres.<project-ref>`,
@@ -126,7 +135,7 @@ gitignored `backend/.env` (loaded by `spring-dotenv`). Keep the Hikari pool smal
 
 ## Testing
 
-- Unit/integration: 135 backend tests. `AbstractIntegrationTest` (full HTTP, MockMvc, own
+- Unit/integration: 142 backend tests. `AbstractIntegrationTest` (full HTTP, MockMvc, own
   Postgres container) vs `AbstractPostgresContainerTest` (`@DataJpaTest` slice, separate pristine
   container — do not share containers; the seeded roles break uniqueness tests).
 - E2E: `frontend/e2e/*.spec.ts`, sequential (one shared backend), unique emails per test.

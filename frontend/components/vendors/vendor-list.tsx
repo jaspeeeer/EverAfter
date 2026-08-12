@@ -24,6 +24,7 @@ import {
   editVendorAction,
   listVendorPaymentsAction,
   markVendorPaymentPaidAction,
+  restoreVendorAction,
   updateVendorAction,
 } from "@/app/actions/vendors";
 import { applyVendorTemplateAction } from "@/app/actions/templates";
@@ -282,8 +283,22 @@ function VendorRow({
 
   const remove = () => {
     startTransition(async () => {
-      await deleteVendorAction(projectId, vendor.id);
-      toast("Vendor deleted");
+      const res = await deleteVendorAction(projectId, vendor.id);
+      if (res.error) {
+        toast(res.error, "error");
+        return;
+      }
+      toast("Vendor deleted", "success", {
+        action: {
+          label: "Undo",
+          onClick: () => {
+            startTransition(async () => {
+              const restoreRes = await restoreVendorAction(projectId, vendor.id);
+              toast(restoreRes.error ?? "Vendor restored", restoreRes.error ? "error" : "success");
+            });
+          },
+        },
+      });
     });
   };
 
@@ -372,8 +387,22 @@ function ItemRow({
 
   const remove = () => {
     startTransition(async () => {
-      await deleteVendorAction(projectId, vendor.id);
-      toast("Item removed");
+      const res = await deleteVendorAction(projectId, vendor.id);
+      if (res.error) {
+        toast(res.error, "error");
+        return;
+      }
+      toast("Item removed", "success", {
+        action: {
+          label: "Undo",
+          onClick: () => {
+            startTransition(async () => {
+              const restoreRes = await restoreVendorAction(projectId, vendor.id);
+              toast(restoreRes.error ?? "Item restored", restoreRes.error ? "error" : "success");
+            });
+          },
+        },
+      });
     });
   };
 

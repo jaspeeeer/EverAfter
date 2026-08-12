@@ -47,16 +47,37 @@ contain items.
 - Admin reports and the platform vendor count treat items as invisible — they're not separate
   "vendors" for those purposes (`vendorRepository...` queries filter `parent is null`).
 
-## Soft delete (`V18`, infrastructure only — no user-facing change yet)
+## Soft delete + undo (`V18`)
 
 `vendors.deleted_at` (nullable timestamp) plus `@SQLRestriction("deleted_at is null")` on `Vendor`
 excludes a tombstoned row from every existing read with no per-query changes — `findByProjectId`,
 the three admin report aggregates, `countByCategoryId`/`countByDirectoryEntryId`, even
 `AdminService.stats()`'s plain `count()`. `vendor_payments` has no `deleted_at` of its own, so its
 four repository queries carry an **explicit** `p.vendor.deletedAt is null` predicate instead of
-relying on the restriction to propagate through the implicit association join. `VendorService`
-still hard-deletes for now; nothing sets the column yet — see [guests.md](guests.md) for why this
-shipped as its own change ahead of the actual undo feature.
+relying on the restriction to propagate through the implicit association join.
+
+`VendorService.delete` stamps `deletedAt` instead of removing the row; `POST
+…/vendors/{vendorId}/restore` reverses it. Three things this touches that a plain guest/task/expense
+restore doesn't:
+- **Package cascade.** A package's currently-*live* items are stamped with the exact same
+  `Instant` the package itself gets, and restore only revives items whose `deleted_at` matches
+  that value — so an item independently deleted at a different time (before or after) is left
+  alone. See `VendorRepository.findDeletedAtIfSoftDeleted` / `restoreItemsWithDeletedAt`.
+- **The managed expense stays a hard delete.** It's system-owned derived bookkeeping (mirrors
+  `agreedPrice`), not user data — `syncVendorExpense` recreates it from scratch on restore rather
+  than restoring a tombstoned copy, which sidesteps ever having two "managed" lines for one vendor.
+- **Manual expense mappings are explicitly unmapped**, not just left alone. A hard delete used to
+  get this for free via the DB's `ON DELETE SET NULL`; a soft delete never fires it (the vendor row
+  still physically exists), so `VendorService.delete` now nulls `expense.vendor` itself
+  (`ExpenseRepository.findByVendorId`). Without this, `ExpenseResponse.from`'s
+  `expense.getVendor().getName()` would try to initialize a lazy proxy for a row
+  `@SQLRestriction` hides and throw `EntityNotFoundException` — a real bug caught by the full test
+  suite, not a hypothetical.
+- **Attachments and payments are completely untouched** by delete/restore — nothing is actually
+  removed, so there's nothing to orphan or bring back.
+
+See [undo-delete.md](undo-delete.md) for the mechanics shared across all four soft-deletable
+entities (the native restore query, the undo toast).
 
 ## Frontend (`/projects/[id]/vendors`)
 

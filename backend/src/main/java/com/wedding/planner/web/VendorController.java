@@ -90,6 +90,13 @@ public class VendorController {
         return ResponseEntity.noContent().build();
     }
 
+    /** Reverses a delete within its undo window — same access rule as the delete it reverses. */
+    @PostMapping("/{vendorId}/restore")
+    @PreAuthorize("@projectSecurity.canAccess(#projectId, authentication)")
+    public VendorResponse restore(@PathVariable UUID projectId, @PathVariable UUID vendorId) {
+        return vendorService.restore(projectId, vendorId);
+    }
+
     // --- Vendor payments (installments against the agreed full amount) ---
 
     @GetMapping("/{vendorId}/payments")

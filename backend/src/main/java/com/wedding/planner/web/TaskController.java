@@ -76,4 +76,11 @@ public class TaskController {
         taskService.delete(projectId, taskId);
         return ResponseEntity.noContent().build();
     }
+
+    /** Reverses a delete within its undo window — same access rule as the delete it reverses. */
+    @PostMapping("/{taskId}/restore")
+    @PreAuthorize("@projectSecurity.canAccess(#projectId, authentication)")
+    public TaskResponse restore(@PathVariable UUID projectId, @PathVariable UUID taskId) {
+        return taskService.restore(projectId, taskId);
+    }
 }

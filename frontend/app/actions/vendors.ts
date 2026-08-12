@@ -106,13 +106,36 @@ export async function updateVendorAction(
 export async function deleteVendorAction(
   projectId: string,
   vendorId: string,
-): Promise<void> {
-  const token = await getToken();
-  await apiFetch(`/api/projects/${projectId}/vendors/${vendorId}`, {
-    method: "DELETE",
-    token,
-  });
-  revalidateVendor(projectId);
+): Promise<{ error?: string }> {
+  try {
+    const token = await getToken();
+    await apiFetch(`/api/projects/${projectId}/vendors/${vendorId}`, {
+      method: "DELETE",
+      token,
+    });
+    revalidateVendor(projectId);
+    return {};
+  } catch (error) {
+    return { error: error instanceof ApiError ? error.message : "Something went wrong." };
+  }
+}
+
+/** Reverses a delete within its undo window. */
+export async function restoreVendorAction(
+  projectId: string,
+  vendorId: string,
+): Promise<{ error?: string }> {
+  try {
+    const token = await getToken();
+    await apiFetch(`/api/projects/${projectId}/vendors/${vendorId}/restore`, {
+      method: "POST",
+      token,
+    });
+    revalidateVendor(projectId);
+    return {};
+  } catch (error) {
+    return { error: error instanceof ApiError ? error.message : "Something went wrong." };
+  }
 }
 
 /** Adds a global directory entry into this project as a new linked vendor. */

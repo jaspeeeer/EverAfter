@@ -23,6 +23,7 @@ import com.wedding.planner.repository.VendorDirectoryRepository;
 import com.wedding.planner.repository.VendorPaymentRepository;
 import com.wedding.planner.repository.VendorRepository;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -120,22 +121,50 @@ public class VendorService {
         return VendorResponse.from(vendor, paymentRepository.sumPaidByVendorId(vendor.getId()));
     }
 
+    /**
+     * Soft-deletes the vendor: stamps {@code deletedAt} rather than removing the row, so
+     * {@link #restore} can bring it back. A package's currently-live items are stamped with the
+     * exact same timestamp, so restore revives exactly this cascade and nothing an item's own,
+     * independent delete already removed at a different time. Attachments and payments are left
+     * completely untouched — nothing is actually removed, so there's nothing to orphan. The
+     * managed (agreed-price) budget line is the one exception: it's system-owned derived
+     * bookkeeping, not user intent, so it's hard-deleted here and recreated by
+     * {@link #syncVendorExpense} on restore (sidesteps ever having two "managed" lines for one
+     * vendor, since {@code findByVendorIdAndManagedTrue} assumes at most one).
+     *
+     * <p>Manual (non-managed) expense mappings to this vendor are explicitly unmapped here too —
+     * on a hard delete this used to happen for free via the DB's {@code ON DELETE SET NULL}, but
+     * a soft delete never fires it (the vendor row still physically exists). Left mapped, the
+     * expense's lazy {@code vendor} association would try to load a row {@code @SQLRestriction}
+     * now hides and blow up with {@code EntityNotFoundException} the moment anything reads it
+     * (e.g. {@code ExpenseResponse.from} calling {@code getVendor().getName()}).
+     */
     @Transactional
     public void delete(UUID projectId, UUID vendorId) {
         Vendor vendor = requireVendorInProject(projectId, vendorId);
         String name = vendor.getName();
-        // Remove the system-owned agreed-price line explicitly; any manual vendor mappings are
-        // left in place (the FK is ON DELETE SET NULL, so they simply unmap).
         expenseRepository.findByVendorIdAndManagedTrue(vendorId)
                 .ifPresent(expenseRepository::delete);
-        // Attachments are polymorphic (no FK), so the DB's ON DELETE CASCADE from vendors to
-        // vendor_payments won't clean up attachment rows/files for those payments — do it here.
-        paymentRepository.findByVendorIdChronological(vendorId)
-                .forEach(p -> attachmentService.deleteAllFor(AttachmentOwnerType.VENDOR_PAYMENT, p.getId()));
-        attachmentService.deleteAllFor(AttachmentOwnerType.VENDOR, vendorId);
-        vendorRepository.delete(vendor);
+        expenseRepository.findByVendorId(vendorId).forEach(e -> e.setVendor(null));
+        Instant deletedAt = Instant.now();
+        vendorRepository.findByParentId(vendorId).forEach(item -> item.setDeletedAt(deletedAt));
+        vendor.setDeletedAt(deletedAt);
         activityLog.record(projectId, ActivityEntityType.VENDOR, vendorId,
                 ActivityAction.DELETE, "Deleted vendor \"" + name + "\"");
+    }
+
+    /** Reverses {@link #delete} — the vendor and, if it was a package, exactly the items it took with it. */
+    @Transactional
+    public VendorResponse restore(UUID projectId, UUID vendorId) {
+        Instant deletedAt = vendorRepository.findDeletedAtIfSoftDeleted(vendorId, projectId)
+                .orElseThrow(() -> ResourceNotFoundException.of("Vendor", vendorId));
+        vendorRepository.restoreById(vendorId, projectId);
+        vendorRepository.restoreItemsWithDeletedAt(vendorId, deletedAt);
+        Vendor vendor = requireVendorInProject(projectId, vendorId);
+        syncVendorExpense(vendor);
+        activityLog.record(projectId, ActivityEntityType.VENDOR, vendorId,
+                ActivityAction.RESTORE, "Restored vendor \"" + vendor.getName() + "\"");
+        return VendorResponse.from(vendor, paymentRepository.sumPaidByVendorId(vendorId));
     }
 
     /** Copies a directory entry into this project as a new vendor and keeps the link. */

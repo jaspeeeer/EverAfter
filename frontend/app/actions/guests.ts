@@ -143,13 +143,36 @@ export async function updateGuestAction(
 export async function deleteGuestAction(
   projectId: string,
   guestId: string,
-): Promise<void> {
-  const token = await getToken();
-  await apiFetch(`/api/projects/${projectId}/guests/${guestId}`, {
-    method: "DELETE",
-    token,
-  });
-  revalidatePath(`/projects/${projectId}/guests`);
+): Promise<{ error?: string }> {
+  try {
+    const token = await getToken();
+    await apiFetch(`/api/projects/${projectId}/guests/${guestId}`, {
+      method: "DELETE",
+      token,
+    });
+    revalidatePath(`/projects/${projectId}/guests`);
+    return {};
+  } catch (error) {
+    return { error: error instanceof ApiError ? error.message : "Something went wrong." };
+  }
+}
+
+/** Reverses a delete within its undo window. */
+export async function restoreGuestAction(
+  projectId: string,
+  guestId: string,
+): Promise<{ error?: string }> {
+  try {
+    const token = await getToken();
+    await apiFetch(`/api/projects/${projectId}/guests/${guestId}/restore`, {
+      method: "POST",
+      token,
+    });
+    revalidatePath(`/projects/${projectId}/guests`);
+    return {};
+  } catch (error) {
+    return { error: error instanceof ApiError ? error.message : "Something went wrong." };
+  }
 }
 
 /** Bulk import (CSV rows already parsed client-side). Returns how many were created. */

@@ -43,6 +43,7 @@ const ACTION_TONE: Record<ActivityAction, string> = {
   CREATE: "text-success",
   UPDATE: "text-primary",
   DELETE: "text-destructive",
+  RESTORE: "text-success",
 };
 
 function initials(email: string | null): string {

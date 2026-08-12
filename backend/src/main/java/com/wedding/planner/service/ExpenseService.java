@@ -3,7 +3,6 @@ package com.wedding.planner.service;
 import com.wedding.planner.audit.ActivityLogService;
 import com.wedding.planner.domain.ActivityAction;
 import com.wedding.planner.domain.ActivityEntityType;
-import com.wedding.planner.domain.AttachmentOwnerType;
 import com.wedding.planner.domain.Expense;
 import com.wedding.planner.domain.Project;
 import com.wedding.planner.domain.Vendor;
@@ -16,6 +15,7 @@ import com.wedding.planner.repository.ExpenseRepository;
 import com.wedding.planner.repository.ProjectRepository;
 import com.wedding.planner.repository.VendorRepository;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -33,20 +33,17 @@ public class ExpenseService {
     private final VendorCategoryService vendorCategoryService;
     private final VendorRepository vendorRepository;
     private final ActivityLogService activityLog;
-    private final AttachmentService attachmentService;
 
     public ExpenseService(ExpenseRepository expenseRepository,
                           ProjectRepository projectRepository,
                           VendorCategoryService vendorCategoryService,
                           VendorRepository vendorRepository,
-                          ActivityLogService activityLog,
-                          AttachmentService attachmentService) {
+                          ActivityLogService activityLog) {
         this.expenseRepository = expenseRepository;
         this.projectRepository = projectRepository;
         this.vendorCategoryService = vendorCategoryService;
         this.vendorRepository = vendorRepository;
         this.activityLog = activityLog;
-        this.attachmentService = attachmentService;
     }
 
     @Transactional(readOnly = true)
@@ -99,10 +96,20 @@ public class ExpenseService {
                     "This line is from a vendor's agreed price — clear it on the vendor instead");
         }
         String description = expense.getDescription();
-        attachmentService.deleteAllFor(AttachmentOwnerType.EXPENSE, expenseId);
-        expenseRepository.delete(expense);
+        expense.setDeletedAt(Instant.now());
         activityLog.record(projectId, ActivityEntityType.EXPENSE, expenseId,
                 ActivityAction.DELETE, "Deleted expense \"" + description + "\"");
+    }
+
+    @Transactional
+    public ExpenseResponse restore(UUID projectId, UUID expenseId) {
+        if (expenseRepository.restore(expenseId, projectId) == 0) {
+            throw ResourceNotFoundException.of("Expense", expenseId);
+        }
+        Expense expense = requireExpenseInProject(projectId, expenseId);
+        activityLog.record(projectId, ActivityEntityType.EXPENSE, expenseId,
+                ActivityAction.RESTORE, "Restored expense \"" + expense.getDescription() + "\"");
+        return ExpenseResponse.from(expense);
     }
 
     /** Resolves an optional vendor mapping, verifying the vendor belongs to this project. */

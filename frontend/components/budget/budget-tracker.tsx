@@ -6,6 +6,7 @@ import {
   createExpenseAction,
   deleteExpenseAction,
   editExpenseAction,
+  restoreExpenseAction,
   updateExpenseAction,
 } from "@/app/actions/expenses";
 import { AttachmentList } from "@/components/attachments/attachment-list";
@@ -288,8 +289,22 @@ function ExpenseRow({
 
   const remove = () => {
     startTransition(async () => {
-      await deleteExpenseAction(projectId, expense.id);
-      toast("Expense deleted");
+      const res = await deleteExpenseAction(projectId, expense.id);
+      if (res.error) {
+        toast(res.error, "error");
+        return;
+      }
+      toast("Expense deleted", "success", {
+        action: {
+          label: "Undo",
+          onClick: () => {
+            startTransition(async () => {
+              const restoreRes = await restoreExpenseAction(projectId, expense.id);
+              toast(restoreRes.error ?? "Expense restored", restoreRes.error ? "error" : "success");
+            });
+          },
+        },
+      });
     });
   };
 

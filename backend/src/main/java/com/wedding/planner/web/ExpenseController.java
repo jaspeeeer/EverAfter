@@ -58,4 +58,11 @@ public class ExpenseController {
         expenseService.delete(projectId, expenseId);
         return ResponseEntity.noContent().build();
     }
+
+    /** Reverses a delete within its undo window — same access rule as the delete it reverses. */
+    @PostMapping("/{expenseId}/restore")
+    @PreAuthorize("@projectSecurity.canAccess(#projectId, authentication)")
+    public ExpenseResponse restore(@PathVariable UUID projectId, @PathVariable UUID expenseId) {
+        return expenseService.restore(projectId, expenseId);
+    }
 }

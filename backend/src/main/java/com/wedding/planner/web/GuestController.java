@@ -68,4 +68,11 @@ public class GuestController {
         guestService.delete(projectId, guestId);
         return ResponseEntity.noContent().build();
     }
+
+    /** Reverses a delete within its undo window — same access rule as the delete it reverses. */
+    @PostMapping("/{guestId}/restore")
+    @PreAuthorize("@projectSecurity.canAccess(#projectId, authentication)")
+    public GuestResponse restore(@PathVariable UUID projectId, @PathVariable UUID guestId) {
+        return guestService.restore(projectId, guestId);
+    }
 }

@@ -12,6 +12,7 @@ import com.wedding.planner.dto.RsvpDtos.RsvpViewResponse;
 import com.wedding.planner.exception.ResourceNotFoundException;
 import com.wedding.planner.repository.GuestRepository;
 import com.wedding.planner.repository.ProjectRepository;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -122,9 +123,20 @@ public class GuestService {
     public void delete(UUID projectId, UUID guestId) {
         Guest guest = requireGuestInProject(projectId, guestId);
         String name = guest.getFullName();
-        guestRepository.delete(guest);
+        guest.setDeletedAt(Instant.now());
         activityLog.record(projectId, ActivityEntityType.GUEST, guestId,
                 ActivityAction.DELETE, "Deleted guest \"" + name + "\"");
+    }
+
+    @Transactional
+    public GuestResponse restore(UUID projectId, UUID guestId) {
+        if (guestRepository.restore(guestId, projectId) == 0) {
+            throw ResourceNotFoundException.of("Guest", guestId);
+        }
+        Guest guest = requireGuestInProject(projectId, guestId);
+        activityLog.record(projectId, ActivityEntityType.GUEST, guestId,
+                ActivityAction.RESTORE, "Restored guest \"" + guest.getFullName() + "\"");
+        return GuestResponse.from(guest);
     }
 
     // --- Public RSVP (token-authenticated, no login) ---

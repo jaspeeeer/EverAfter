@@ -4,5 +4,6 @@ package com.wedding.planner.domain;
 public enum ActivityAction {
     CREATE,
     UPDATE,
-    DELETE
+    DELETE,
+    RESTORE
 }

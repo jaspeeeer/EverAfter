@@ -22,9 +22,11 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Full-HTTP proof of the attachment feature: upload → list → download → delete on a vendor,
- * RBAC (the owning couple has full read/write access; an unrelated planner is denied entirely),
- * and cleanup when the owning vendor is deleted.
+ * Full-HTTP proof of the attachment feature: upload → list → download → delete on a vendor, RBAC
+ * (the owning couple has full read/write access; an unrelated planner is denied entirely), and
+ * survival through a soft-deleted-then-restored owning vendor (attachments are never touched by
+ * {@code VendorService.delete}/{@code restore} — nothing is actually removed, so there's nothing
+ * to clean up or bring back).
  */
 @Transactional
 class AttachmentControllerIntegrationTest extends AbstractIntegrationTest {
@@ -231,7 +233,7 @@ class AttachmentControllerIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void deletingTheVendorRemovesItsAttachments() throws Exception {
+    void softDeletingTheVendorKeepsItsAttachmentsAndRestoreBringsItBack() throws Exception {
         String planner = register("attach-cascade-" + System.nanoTime() + "@t", "ROLE_PLANNER");
         String projectId = createProject(planner, "Cascade Wedding", null);
         String vendorId = createVendor(planner, projectId, "Baker");
@@ -246,11 +248,34 @@ class AttachmentControllerIntegrationTest extends AbstractIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner))
                 .andExpect(status().isNoContent());
 
+        // Soft delete — the vendor is gone from the list but its attachment row/file is untouched.
+        mockMvc.perform(get("/api/projects/" + projectId + "/vendors")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
         mockMvc.perform(get("/api/projects/" + projectId + "/attachments")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner)
                         .param("ownerType", "VENDOR")
                         .param("ownerId", vendorId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(0));
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].filename").value("cake-order.pdf"));
+
+        mockMvc.perform(post("/api/projects/" + projectId + "/vendors/" + vendorId + "/restore")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner))
+                .andExpect(status().isOk());
+
+        // Restored — the vendor is back and the same attachment is still exactly there.
+        mockMvc.perform(get("/api/projects/" + projectId + "/vendors")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+        mockMvc.perform(get("/api/projects/" + projectId + "/attachments")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner)
+                        .param("ownerType", "VENDOR")
+                        .param("ownerId", vendorId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].filename").value("cake-order.pdf"));
     }
 }

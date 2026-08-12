@@ -32,14 +32,16 @@ when a regular line is toggled paid, or the sum of a vendor's payments for a man
 roll-up's **Paid** total is `sum(paid_amount)`, so vendor installments show up as partial paid, not
 all-or-nothing.
 
-## Soft delete (`V18`, infrastructure only — no user-facing change yet)
+## Soft delete + undo (`V18`)
 
 `expenses.deleted_at` (nullable timestamp) plus `@SQLRestriction("deleted_at is null")` on
 `Expense` excludes a tombstoned line from every existing read — `findByProjectId` (and therefore
 `BudgetService.summarize`'s roll-up), `countByCategoryId`, `AdminService.stats()`'s plain
-`count()` — with no per-query changes. `ExpenseService.delete` still hard-deletes for now; nothing
-sets the column yet. See [guests.md](guests.md) for why this shipped as its own change ahead of
-the actual undo feature.
+`count()` — with no per-query changes. `ExpenseService.delete` stamps `deletedAt` instead of
+removing the row (still rejecting managed lines outright, same as before — clear those on the
+vendor instead); `POST …/expenses/{expenseId}/restore` reverses it. A managed line is never
+soft-deletable by this path, so restore never needs to special-case it. See
+[undo-delete.md](undo-delete.md) for the mechanics shared across all four soft-deletable entities.
 
 ## Frontend (`/projects/[id]/budget`)
 

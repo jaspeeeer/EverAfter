@@ -323,7 +323,7 @@ export type ActivityEntityType =
   | "TIMELINE_EVENT"
   | "ATTACHMENT";
 
-export type ActivityAction = "CREATE" | "UPDATE" | "DELETE";
+export type ActivityAction = "CREATE" | "UPDATE" | "DELETE" | "RESTORE";
 
 export interface ActivityLogResponse {
   id: string;

@@ -10,6 +10,7 @@ import com.wedding.planner.dto.TaskResponse;
 import com.wedding.planner.exception.ResourceNotFoundException;
 import com.wedding.planner.repository.ProjectRepository;
 import com.wedding.planner.repository.TaskRepository;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -81,9 +82,20 @@ public class TaskService {
     public void delete(UUID projectId, UUID taskId) {
         Task task = requireTaskInProject(projectId, taskId);
         String title = task.getTitle();
-        taskRepository.delete(task);
+        task.setDeletedAt(Instant.now());
         activityLog.record(projectId, ActivityEntityType.TASK, taskId,
                 ActivityAction.DELETE, "Deleted task \"" + title + "\"");
+    }
+
+    @Transactional
+    public TaskResponse restore(UUID projectId, UUID taskId) {
+        if (taskRepository.restore(taskId, projectId) == 0) {
+            throw ResourceNotFoundException.of("Task", taskId);
+        }
+        Task task = requireTaskInProject(projectId, taskId);
+        activityLog.record(projectId, ActivityEntityType.TASK, taskId,
+                ActivityAction.RESTORE, "Restored task \"" + task.getTitle() + "\"");
+        return TaskResponse.from(task);
     }
 
     private Project requireProject(UUID projectId) {

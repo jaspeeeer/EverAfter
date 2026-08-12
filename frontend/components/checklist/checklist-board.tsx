@@ -16,6 +16,7 @@ import { AlertTriangle, GripVertical, LayoutTemplate, Plus, Trash2 } from "lucid
 import {
   createTaskAction,
   deleteTaskAction,
+  restoreTaskAction,
   updateTaskAction,
 } from "@/app/actions/tasks";
 import { applyChecklistTemplateAction } from "@/app/actions/templates";
@@ -239,8 +240,22 @@ function DraggableTask({
 
   const remove = () => {
     startTransition(async () => {
-      await deleteTaskAction(projectId, task.id);
-      toast("Task deleted");
+      const res = await deleteTaskAction(projectId, task.id);
+      if (res.error) {
+        toast(res.error, "error");
+        return;
+      }
+      toast("Task deleted", "success", {
+        action: {
+          label: "Undo",
+          onClick: () => {
+            startTransition(async () => {
+              const restoreRes = await restoreTaskAction(projectId, task.id);
+              toast(restoreRes.error ?? "Task restored", restoreRes.error ? "error" : "success");
+            });
+          },
+        },
+      });
     });
   };
 

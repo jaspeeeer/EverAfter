@@ -7,6 +7,7 @@ import {
   deleteGuestAction,
   editGuestAction,
   importGuestsAction,
+  restoreGuestAction,
   updateGuestAction,
 } from "@/app/actions/guests";
 import { csvToGuests, guestsToCsv } from "@/lib/csv";
@@ -423,8 +424,22 @@ function GuestRow({
 
   const remove = () => {
     startTransition(async () => {
-      await deleteGuestAction(projectId, guest.id);
-      toast("Guest removed");
+      const res = await deleteGuestAction(projectId, guest.id);
+      if (res.error) {
+        toast(res.error, "error");
+        return;
+      }
+      toast("Guest removed", "success", {
+        action: {
+          label: "Undo",
+          onClick: () => {
+            startTransition(async () => {
+              const restoreRes = await restoreGuestAction(projectId, guest.id);
+              toast(restoreRes.error ?? "Guest restored", restoreRes.error ? "error" : "success");
+            });
+          },
+        },
+      });
     });
   };
 

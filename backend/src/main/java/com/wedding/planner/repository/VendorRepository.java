@@ -1,10 +1,13 @@
 package com.wedding.planner.repository;
 
 import com.wedding.planner.domain.Vendor;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -26,6 +29,37 @@ public interface VendorRepository extends JpaRepository<Vendor, UUID> {
 
     /** How many items (children) a vendor has — used to stop a package from becoming an item. */
     long countByParentId(UUID parentId);
+
+    /** A package's currently-live items — used to cascade a soft delete to them. */
+    List<Vendor> findByParentId(UUID parentId);
+
+    // --- Soft delete / restore ---
+
+    /**
+     * The tombstone timestamp of a soft-deleted vendor, scoped to its project — empty if the
+     * vendor doesn't exist, belongs to another project, or is still live. Read before restoring
+     * so a package restore can revive exactly the items it soft-deleted alongside it (same
+     * {@code deleted_at}) and no others. Native, so it bypasses {@code @SQLRestriction}.
+     */
+    @Query(value = "select deleted_at from vendors where id = :id and project_id = :projectId "
+            + "and deleted_at is not null", nativeQuery = true)
+    Optional<Instant> findDeletedAtIfSoftDeleted(@Param("id") UUID id, @Param("projectId") UUID projectId);
+
+    /** Restores one vendor by id; returns the row count (0 = not found / wrong project / not deleted). */
+    @Modifying
+    @Query(value = "update vendors set deleted_at = null where id = :id and project_id = :projectId "
+            + "and deleted_at is not null", nativeQuery = true)
+    int restoreById(@Param("id") UUID id, @Param("projectId") UUID projectId);
+
+    /**
+     * Restores a package's items — but only the ones stamped with the same {@code deletedAt} the
+     * package itself was soft-deleted with, so an item independently deleted at a different time
+     * (before or after) is left untouched.
+     */
+    @Modifying
+    @Query(value = "update vendors set deleted_at = null where parent_id = :parentId "
+            + "and deleted_at = :deletedAt", nativeQuery = true)
+    int restoreItemsWithDeletedAt(@Param("parentId") UUID parentId, @Param("deletedAt") Instant deletedAt);
 
     // --- Admin report aggregations (rows mapped in ReportService) ---
     // All three exclude package items (v.parent is not null): a package's price/booking is
