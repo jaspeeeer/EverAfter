@@ -11,6 +11,7 @@ import {
   updateGuestAction,
 } from "@/app/actions/guests";
 import { csvToGuests, guestsToCsv } from "@/lib/csv";
+import { orderGuestRolesForPicker } from "@/lib/guest-role-tree";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -132,25 +133,26 @@ export function GuestList({
     roleFilter === "ALL"
       ? byPriority
       : roleFilter === "NONE"
-        ? byPriority.filter((g) => g.roleId === null)
-        : byPriority.filter((g) => g.roleId === roleFilter);
+        ? byPriority.filter((g) => g.roles.length === 0)
+        : byPriority.filter((g) => g.roles.some((r) => r.id === roleFilter));
 
   // Options list: every active role, plus any role currently assigned to a guest but no longer
   // active (an admin deactivating a role should not hide the guests that still carry it).
-  const assignedRoleIds = new Set(guests.map((g) => g.roleId).filter((id): id is string => !!id));
+  const assignedRoleIds = new Set(guests.flatMap((g) => g.roles.map((r) => r.id)));
   const roleOptions = [
     ...roles.filter((r) => r.active || assignedRoleIds.has(r.id)),
   ].sort((a, b) => a.name.localeCompare(b.name));
 
   const t = useTableControls(filtered, {
-    search: (g) => `${guestFullName(g)} ${g.email ?? ""} ${g.roleName ?? ""}`,
+    search: (g) =>
+      `${guestFullName(g)} ${g.email ?? ""} ${g.roles.map((r) => r.name).join(" ")}`,
     sortOptions: [
       { key: "name", label: "Name", get: (g) => guestFullName(g) },
       { key: "rsvp", label: "RSVP", get: (g) => g.rsvpStatus },
       { key: "partySize", label: "Party size", get: (g) => g.partySize ?? 1 },
       { key: "table", label: "Table", get: (g) => g.tableNumber },
       { key: "priority", label: "Priority", get: (g) => g.priority },
-      { key: "role", label: "Role", get: (g) => g.roleName },
+      { key: "role", label: "Role", get: (g) => g.roles.map((r) => r.name).join(", ") },
     ],
     resetKey: `${filter}:${priorityFilter}:${roleFilter}`,
   });
@@ -410,7 +412,7 @@ function GuestRow({
         priority: guest.priority,
         relatedTo: guest.relatedTo,
         relationship: guest.relationship,
-        roleId: guest.roleId,
+        roleIds: guest.roles.map((r) => r.id),
       });
       toast(`RSVP set to ${humanizeEnum(rsvpStatus)}`);
     });
@@ -464,11 +466,11 @@ function GuestRow({
           {guest.priority && (
             <Badge variant={PRIORITY_VARIANT[guest.priority]}>Priority {guest.priority}</Badge>
           )}
-          {guest.roleName && (
-            <Badge variant="secondary">
-              {guest.parentRoleName ? `${guest.parentRoleName} → ${guest.roleName}` : guest.roleName}
+          {guest.roles.map((r) => (
+            <Badge key={r.id} variant="secondary">
+              {r.parentName ? `${r.parentName} → ${r.name}` : r.name}
             </Badge>
-          )}
+          ))}
           {guest.tableNumber != null && (
             <Badge variant="outline">
               <Armchair className="size-3" />
@@ -554,22 +556,23 @@ function GuestFormModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
-  // Keep an existing guest's (possibly deactivated) role selectable.
-  const roleOptions =
-    guest?.roleId && !roles.some((r) => r.id === guest.roleId)
-      ? [
-          {
-            id: guest.roleId,
-            name: guest.roleName ?? "",
-            slug: "",
-            active: false,
-            entourageEligible: false,
-            parentId: null,
-            parentName: guest.parentRoleName,
-          },
-          ...roles,
-        ]
-      : roles;
+  const assignedRoleIdsForGuest = new Set(guest?.roles.map((r) => r.id) ?? []);
+
+  // Keep an existing guest's (possibly deactivated) roles selectable — one synthetic option
+  // per currently-assigned role that isn't in the active catalog.
+  const knownRoleIds = new Set(roles.map((r) => r.id));
+  const deactivatedAssignedRoles = (guest?.roles ?? [])
+    .filter((r) => !knownRoleIds.has(r.id))
+    .map((r) => ({
+      id: r.id,
+      name: r.name,
+      slug: "",
+      active: false,
+      entourageEligible: r.entourageEligible,
+      parentId: null,
+      parentName: r.parentName,
+    }));
+  const roleOptions = [...deactivatedAssignedRoles, ...roles];
 
   return (
     <Modal
@@ -701,40 +704,52 @@ function GuestFormModal({
             </select>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="relationship">Relationship</Label>
-            <select
-              id="relationship"
-              name="relationship"
-              defaultValue={guest?.relationship ?? ""}
-              className={selectClass}
-            >
-              <option value="">— Not set —</option>
-              {RELATIONSHIP_OPTIONS.map((r) => (
-                <option key={r} value={r}>
-                  {humanizeEnum(r)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="roleId">Role</Label>
-            <select
-              id="roleId"
-              name="roleId"
-              defaultValue={guest?.roleId ?? ""}
-              className={selectClass}
-            >
-              <option value="">— No role —</option>
-              {roleOptions.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.parentName ? `${r.parentName} → ${r.name}` : r.name}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="relationship">Relationship</Label>
+          <select
+            id="relationship"
+            name="relationship"
+            defaultValue={guest?.relationship ?? ""}
+            className={selectClass}
+          >
+            <option value="">— Not set —</option>
+            {RELATIONSHIP_OPTIONS.map((r) => (
+              <option key={r} value={r}>
+                {humanizeEnum(r)}
+              </option>
+            ))}
+          </select>
         </div>
+
+        <fieldset className="space-y-1.5">
+          <legend className="text-sm font-medium">Roles</legend>
+          {roleOptions.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              No guest roles yet — add them on the admin Guest Roles page first.
+            </p>
+          ) : (
+            <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-border p-3">
+              {orderGuestRolesForPicker(roleOptions).map(({ role, indent }) => (
+                <label
+                  key={role.id}
+                  className={cn("flex items-center gap-2 text-sm", indent && "pl-5")}
+                >
+                  <input
+                    type="checkbox"
+                    name="roleIds"
+                    value={role.id}
+                    defaultChecked={assignedRoleIdsForGuest.has(role.id)}
+                    className="size-4 rounded border-input"
+                  />
+                  <span className="truncate">{role.name}</span>
+                  {!role.active && (
+                    <span className="text-xs text-muted-foreground">(inactive)</span>
+                  )}
+                </label>
+              ))}
+            </div>
+          )}
+        </fieldset>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="email">Email</Label>

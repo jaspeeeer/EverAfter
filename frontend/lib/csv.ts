@@ -86,7 +86,7 @@ export function guestsToCsv(guests: GuestResponse[]): string {
         g.priority ?? "",
         g.relatedTo ?? "",
         g.relationship ?? "",
-        g.roleName ?? "",
+        g.roles.map((r) => r.name).join(", "),
       ]
         .map(escapeCell)
         .join(","),
@@ -149,15 +149,16 @@ export interface ParsedGuestRow {
   priority: GuestPriority | null;
   relatedTo: RelatedTo | null;
   relationship: GuestRelationship | null;
-  roleId: string | null;
+  roleIds: string[];
 }
 
 /**
  * Parses a guest CSV. Accepts our export format; a header row is detected and skipped. Rows
  * missing a first name are dropped; unknown RSVP values fall back to PENDING; unknown/blank
  * title, gender, priority, related-to, relationship, or role values are simply left unset (all
- * optional). A blank party-size cell is left unset (null = "just this guest"). `roles` resolves
- * the "role" column (an exported role's display name) back to its id.
+ * optional). A blank party-size cell is left unset (null = "just this guest"). The "role" column
+ * holds a comma-separated list of role display names; each is resolved case-insensitively
+ * against `roles` and unresolved names are silently dropped (same leniency as a single role).
  */
 export function csvToGuests(text: string, roles: GuestRoleResponse[] = []): ParsedGuestRow[] {
   const rows = parseCsv(text);
@@ -203,8 +204,12 @@ export function csvToGuests(text: string, roles: GuestRoleResponse[] = []): Pars
     )
       ? (relationshipRaw.toUpperCase() as GuestRelationship)
       : null;
-    const roleId =
-      roles.find((r) => r.name.toLowerCase() === roleName?.toLowerCase())?.id ?? null;
+    const roleIds = (roleName ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((n) => roles.find((r) => r.name.toLowerCase() === n.toLowerCase())?.id)
+      .filter((id): id is string => !!id);
     parsed.push({
       firstName,
       lastName: lastName || null,
@@ -219,7 +224,7 @@ export function csvToGuests(text: string, roles: GuestRoleResponse[] = []): Pars
       priority,
       relatedTo,
       relationship,
-      roleId,
+      roleIds,
     });
   }
   return parsed;

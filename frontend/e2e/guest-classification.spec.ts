@@ -37,7 +37,7 @@ test("admin adds a guest role; planner classifies a guest and filters by priorit
   await dialog.locator("#priority").selectOption("A");
   await dialog.locator("#relatedTo").selectOption({ label: "Groom" });
   await dialog.locator("#relationship").selectOption({ label: "Close friend" });
-  await dialog.locator("#roleId").selectOption({ label: uniqueRole });
+  await dialog.getByRole("checkbox", { name: uniqueRole, exact: true }).check();
   await dialog.getByRole("button", { name: "Add guest" }).click();
   await expect(page.getByText("Guest added")).toBeVisible();
 
@@ -120,7 +120,9 @@ test("admin creates a sub-role under Secondary Sponsor; it displays with the par
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("First name").fill("Candle");
   await dialog.getByLabel("Last name").fill("Bearer");
-  await dialog.locator("#roleId").selectOption({ label: composedLabel });
+  // The picker shows the sub-role's own name, indented under its parent (not the composed
+  // "Parent → Child" label — that prefix only appears on the row badge, checked below).
+  await dialog.getByRole("checkbox", { name: uniqueSubRole, exact: true }).check();
   await dialog.getByRole("button", { name: "Add guest" }).click();
   await expect(page.getByText("Guest added")).toBeVisible();
 

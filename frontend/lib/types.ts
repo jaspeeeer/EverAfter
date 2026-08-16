@@ -177,6 +177,14 @@ export interface ExpenseResponse {
   managed: boolean;
 }
 
+export interface GuestRoleAssignmentResponse {
+  id: string;
+  name: string;
+  entourageEligible: boolean;
+  /** Set when this role is a sub-role — the top-level role it's nested under. */
+  parentName: string | null;
+}
+
 export interface GuestResponse {
   id: string;
   firstName: string;
@@ -192,11 +200,8 @@ export interface GuestResponse {
   priority: GuestPriority | null;
   relatedTo: RelatedTo | null;
   relationship: GuestRelationship | null;
-  roleId: string | null;
-  roleName: string | null;
-  roleEntourageEligible: boolean;
-  /** Set when roleName is a sub-role — the top-level role it's nested under. */
-  parentRoleName: string | null;
+  /** A guest may carry zero, one, or several roles at once. */
+  roles: GuestRoleAssignmentResponse[];
   rsvpToken: string;
   projectId: string;
 }

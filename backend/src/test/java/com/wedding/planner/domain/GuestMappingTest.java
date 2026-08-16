@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.wedding.planner.AbstractPostgresContainerTest;
 import com.wedding.planner.repository.GuestRepository;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
@@ -50,14 +51,15 @@ class GuestMappingTest extends AbstractPostgresContainerTest {
     @Test
     void classificationEnumsAndRoleRoundTrip() {
         Project project = persistProject("Classified Wedding");
-        // A fresh role (name/slug not in the V12 seed set, to avoid the unique-constraint clash).
+        // Fresh roles (names/slugs not in the V12 seed set, to avoid the unique-constraint clash).
         GuestRole role = em.persistAndFlush(new GuestRole("Test Role", "TEST_ROLE", 99));
+        GuestRole secondRole = em.persistAndFlush(new GuestRole("Test Role Two", "TEST_ROLE_TWO", 100));
 
         Guest guest = new Guest("Sam", RsvpStatus.ATTENDING, 1);
         guest.setPriority(GuestPriority.A);
         guest.setRelatedTo(RelatedTo.GROOM);
         guest.setRelationship(GuestRelationship.CLOSE_FRIEND);
-        guest.setRole(role);
+        guest.replaceRoles(Set.of(role, secondRole));
         project.addGuest(guest);
 
         em.persistAndFlush(project);
@@ -69,7 +71,8 @@ class GuestMappingTest extends AbstractPostgresContainerTest {
                     assertThat(g.getPriority()).isEqualTo(GuestPriority.A);
                     assertThat(g.getRelatedTo()).isEqualTo(RelatedTo.GROOM);
                     assertThat(g.getRelationship()).isEqualTo(GuestRelationship.CLOSE_FRIEND);
-                    assertThat(g.getRole().getSlug()).isEqualTo("TEST_ROLE");
+                    assertThat(g.getRoles()).extracting(GuestRole::getSlug)
+                            .containsExactlyInAnyOrder("TEST_ROLE", "TEST_ROLE_TWO");
                 });
 
         // Enum columns store the literal name, like rsvp_status (char(1) reads back as a Character).

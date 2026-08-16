@@ -29,14 +29,40 @@ which are ever exposed on the public RSVP surface (`RsvpDtos`/`PublicController`
 - `related_to` — a fixed enum **GROOM / BRIDE** (which side of the couple).
 - `relationship` — a fixed enum: PARENT, IMMEDIATE_FAMILY, CLOSE_FRIEND, OFFICEMATE, RELATIVE,
   FAMILY_FRIEND, CHURCHMATE, COMPANION_OF_GUEST.
-- `role_id` — a FK to **`guest_roles`**, an **admin-managed lookup** (same shape as
-  `vendor_categories`: name/slug/active/sort_order, auto-slug on create, deactivate-if-in-use on
-  delete). Seeded with a starter set (Principal Sponsor, Best Man, Maid of Honor, Officiating
-  Pastor, …) admins can rename/add to/deactivate at `/admin/guest-roles`
-  (`GET /api/guest-roles` public-active-list, `/api/admin/guest-roles` admin CRUD). Also carries
-  an admin-managed `entourage_eligible` flag (`V22`) controlling which roles' guests show up in
-  the Entourage settings card's "import from guests" picker — see
-  [attire-and-entourage.md](attire-and-entourage.md).
+- **roles** — a guest may carry zero, one, or several **`guest_roles`**, an **admin-managed
+  lookup** (same shape as `vendor_categories`: name/slug/active/sort_order, auto-slug on
+  create, deactivate-if-in-use on delete). Seeded with a starter set (Principal Sponsor, Best
+  Man, Maid of Honor, Officiating Pastor, …) admins can rename/add to/deactivate at
+  `/admin/guest-roles` (`GET /api/guest-roles` public-active-list, `/api/admin/guest-roles`
+  admin CRUD). Also carries an admin-managed `entourage_eligible` flag (`V22`) controlling
+  which roles' guests show up in the Entourage settings card's "import from guests" picker —
+  see [attire-and-entourage.md](attire-and-entourage.md).
+
+  **Many-to-many (`V25`).** `guest_role_assignments` is a join table between `guests` and
+  `guest_roles`, shaped exactly like `timeline_event_vendors`'s package/vendor link (`V5`):
+  composite PK (`guest_id`, `role_id`), both FKs `ON DELETE CASCADE`, no surrogate id. Replaces
+  the original single nullable `guests.role_id` FK (dropped in the same migration, after an
+  `INSERT … SELECT` carries every existing assignment forward — including soft-deleted guests,
+  so a later restore keeps its role). `Guest.roles` is a unidirectional `@ManyToMany`
+  (`Set<GuestRole>`) with a `replaceRoles(Set<GuestRole>)` full-replace helper, mirroring
+  `TimelineEvent.replaceVendors`; `GuestRoleService.resolveRoles(List<UUID>)` resolves/dedupes
+  the submitted ids (400 on an unknown one), mirroring `TimelineService.resolveVendors` minus
+  the tenant check (guest roles are global, not project-scoped). `GuestRoleService.delete`'s
+  deactivate-if-referenced guard now queries `GuestRepository.countByRolesId` (a derived count
+  straight through the `@ManyToMany` collection) instead of the old `countByRoleId`.
+  `GuestResponse.roles` is a nested `GuestRoleAssignmentResponse[]` (id, name,
+  entourageEligible, parentName) — no flat `roleIds`/`roleNames` echo, matching
+  `TimelineEventResponse`'s "nested list only" precedent. The Guests-tab add/edit form is a
+  checkbox `<fieldset>` (mirroring the timeline vendor picker), not a `<select>`; the row shows
+  one badge per role; the role filter matches if *any* of a guest's roles equals the selected
+  value; CSV's "role" column holds a comma-separated list of role names on export and
+  case-insensitively resolves + silently drops unknown names on import. The Entourage "import
+  from guests" picker groups by (guest, role) **pairs**, not by guest alone — a guest with two
+  eligible roles (e.g. Groomsman *and* a Secondary Sponsor sub-role like Candle) appears once
+  per group, and checking both creates two separate entourage rows for the same person;
+  `EntourageService.importFromGuests` dedupes by the **(name, role)** pair rather than name
+  alone, so re-submitting the same pair no-ops but the same person under a second role is
+  legitimately a second row.
 
   **One level of sub-role nesting (`V24`).** `guest_roles.parent_id` is a nullable self-FK
   (`ON DELETE SET NULL`), mirroring `Vendor.parent_id`'s package-item pattern (`V11`) — a
@@ -73,7 +99,7 @@ which are ever exposed on the public RSVP surface (`RsvpDtos`/`PublicController`
 
 **Soft delete + undo (`V18`).** `guests.deleted_at` (nullable timestamp) plus
 `@SQLRestriction("deleted_at is null")` on `Guest` means every existing read —
-`findByProjectId`, `findByRsvpToken`, `countByRoleId`, even `AdminService.stats()`'s plain
+`findByProjectId`, `findByRsvpToken`, `countByRolesId`, even `AdminService.stats()`'s plain
 `count()` — transparently excludes a tombstoned row with no per-query changes. `GuestService.delete`
 stamps `deletedAt` instead of removing the row; `POST …/guests/{guestId}/restore` reverses it (a
 native `UPDATE … WHERE deleted_at IS NOT NULL` — `@SQLRestriction` hides the row from the normal
@@ -86,9 +112,9 @@ mechanics across all four soft-deletable entities.
 
 `canAccess`-gated under `…/{projectId}/guests`: list / create / full-replace PUT / delete, plus
 `POST …/guests/import` — bulk create for CSV import (list of guest bodies, validated per row,
-**all-or-nothing** in one transaction). `GuestRequest`/`GuestResponse` carry `firstName`,
-`lastName`, `title`, `gender`, `priority`, `relatedTo`, `relationship`, `roleId` (+ `roleName` on
-the response) alongside the original fields.
+**all-or-nothing** in one transaction). `GuestRequest` carries `firstName`, `lastName`, `title`,
+`gender`, `priority`, `relatedTo`, `relationship`, `roleIds` (a list — see the many-to-many note
+above); `GuestResponse` carries the same fields plus `roles` (nested `GuestRoleAssignmentResponse[]`).
 
 ## Frontend (`/projects/[id]/guests`)
 
@@ -126,11 +152,13 @@ always set party size regardless of the toggle.
 ## Key files
 
 - `backend/.../domain/{Guest,Gender,GuestRole,GuestPriority,RelatedTo,GuestRelationship}.java`,
-  `service/{GuestService,GuestRoleService}.java`,
-  `web/{GuestController,GuestRoleController,GuestRoleAdminController}.java`, migrations
-  `V12`/`V17`
+  `service/{GuestService,GuestRoleService,EntourageService}.java`,
+  `web/{GuestController,GuestRoleController,GuestRoleAdminController,EntourageController}.java`,
+  `repository/GuestRepository.java`, migrations `V12`/`V17`/`V25`
 - `frontend/components/guests/guest-list.tsx`, `components/admin/guest-role-manager.tsx`,
-  `app/actions/{guests,guest-catalog}.ts`, `lib/csv.ts`,
+  `components/projects/entourage-manager.tsx`,
+  `app/actions/{guests,guest-catalog,entourage}.ts`, `lib/{csv,guest-role-tree}.ts`,
   `app/(app)/admin/guest-roles/page.tsx`
-- Tests: `GuestMappingTest`, `GuestRoleIntegrationTest`,
-  `InvitationRsvpAdminIntegrationTest` (import + RSVP), `e2e/guest-classification.spec.ts`
+- Tests: `GuestMappingTest`, `GuestRoleServiceTest`, `GuestRoleIntegrationTest`,
+  `EntourageServiceTest`, `InvitationRsvpAdminIntegrationTest` (import + RSVP),
+  `e2e/{guest-classification,entourage}.spec.ts`

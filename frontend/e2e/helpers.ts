@@ -155,13 +155,24 @@ export async function apiCreateGuestWithRole(
   name: string,
   roleId: string,
 ): Promise<string> {
+  return apiCreateGuestWithRoles(request, token, projectId, name, [roleId]);
+}
+
+/** Creates a guest carrying several roles at once and returns the guest's own id. */
+export async function apiCreateGuestWithRoles(
+  request: APIRequestContext,
+  token: string,
+  projectId: string,
+  name: string,
+  roleIds: string[],
+): Promise<string> {
   const [firstName, ...rest] = name.split(" ");
   const lastName = rest.length > 0 ? rest.join(" ") : null;
   const res = await request.post(`${API}/api/projects/${projectId}/guests`, {
     headers: { Authorization: `Bearer ${token}` },
-    data: { firstName, lastName, rsvpStatus: "PENDING", partySize: 1, roleId },
+    data: { firstName, lastName, rsvpStatus: "PENDING", partySize: 1, roleIds },
   });
-  expect(res.ok(), `create guest ${name} with role`).toBeTruthy();
+  expect(res.ok(), `create guest ${name} with roles`).toBeTruthy();
   return (await res.json()).id as string;
 }
 

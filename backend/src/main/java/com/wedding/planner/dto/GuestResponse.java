@@ -4,8 +4,11 @@ import com.wedding.planner.domain.Gender;
 import com.wedding.planner.domain.Guest;
 import com.wedding.planner.domain.GuestPriority;
 import com.wedding.planner.domain.GuestRelationship;
+import com.wedding.planner.domain.GuestRole;
 import com.wedding.planner.domain.RelatedTo;
 import com.wedding.planner.domain.RsvpStatus;
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
 
 public record GuestResponse(
@@ -23,10 +26,7 @@ public record GuestResponse(
         GuestPriority priority,
         RelatedTo relatedTo,
         GuestRelationship relationship,
-        UUID roleId,
-        String roleName,
-        boolean roleEntourageEligible,
-        String parentRoleName,
+        List<GuestRoleAssignmentResponse> roles,
         UUID rsvpToken,
         UUID projectId) {
 
@@ -46,12 +46,23 @@ public record GuestResponse(
                 guest.getPriority(),
                 guest.getRelatedTo(),
                 guest.getRelationship(),
-                guest.getRole() != null ? guest.getRole().getId() : null,
-                guest.getRole() != null ? guest.getRole().getName() : null,
-                guest.getRole() != null && guest.getRole().isEntourageEligible(),
-                guest.getRole() != null && guest.getRole().getParent() != null
-                        ? guest.getRole().getParent().getName() : null,
+                guest.getRoles().stream()
+                        .map(GuestRoleAssignmentResponse::from)
+                        .sorted(Comparator.comparing(GuestRoleAssignmentResponse::name))
+                        .toList(),
                 guest.getRsvpToken(),
                 guest.getProject().getId());
+    }
+
+    /** One role assignment on a guest — mirrors TimelineDtos.EventVendorResponse. */
+    record GuestRoleAssignmentResponse(UUID id, String name, boolean entourageEligible, String parentName) {
+
+        static GuestRoleAssignmentResponse from(GuestRole role) {
+            return new GuestRoleAssignmentResponse(
+                    role.getId(),
+                    role.getName(),
+                    role.isEntourageEligible(),
+                    role.getParent() != null ? role.getParent().getName() : null);
+        }
     }
 }

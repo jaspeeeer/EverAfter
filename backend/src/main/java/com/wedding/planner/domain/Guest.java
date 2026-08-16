@@ -10,10 +10,14 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import org.hibernate.annotations.SQLRestriction;
 
@@ -82,13 +86,19 @@ public class Guest {
     @Column(name = "relationship", length = 30)
     private GuestRelationship relationship;
 
-    /** Admin-managed wedding role (Principal Sponsor, Best Man, …); null when unassigned. */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(
-            name = "role_id",
-            foreignKey = @ForeignKey(name = "fk_guests_role")
+    /**
+     * Admin-managed wedding role(s) (Principal Sponsor, Best Man, …); a guest may carry zero,
+     * one, or several. Owning side; join rows cascade at the DB level.
+     */
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "guest_role_assignments",
+            joinColumns = @JoinColumn(name = "guest_id",
+                    foreignKey = @ForeignKey(name = "fk_gra_guest")),
+            inverseJoinColumns = @JoinColumn(name = "role_id",
+                    foreignKey = @ForeignKey(name = "fk_gra_role"))
     )
-    private GuestRole role;
+    private Set<GuestRole> roles = new HashSet<>();
 
     /** Secret token for the public no-login RSVP link. */
     @Column(name = "rsvp_token", nullable = false, unique = true, updatable = false)
@@ -237,12 +247,14 @@ public class Guest {
         this.relationship = relationship;
     }
 
-    public GuestRole getRole() {
-        return role;
+    public Set<GuestRole> getRoles() {
+        return roles;
     }
 
-    public void setRole(GuestRole role) {
-        this.role = role;
+    /** Replaces the assigned roles wholesale (PUT semantics). */
+    public void replaceRoles(Set<GuestRole> newRoles) {
+        roles.clear();
+        roles.addAll(newRoles);
     }
 
     public UUID getRsvpToken() {

@@ -5,9 +5,11 @@ import com.wedding.planner.domain.ActivityAction;
 import com.wedding.planner.domain.ActivityEntityType;
 import com.wedding.planner.domain.EntourageMember;
 import com.wedding.planner.domain.Guest;
+import com.wedding.planner.domain.GuestRole;
 import com.wedding.planner.domain.Project;
 import com.wedding.planner.dto.EntourageDtos.EntourageMemberRequest;
 import com.wedding.planner.dto.EntourageDtos.EntourageMemberResponse;
+import com.wedding.planner.dto.EntourageDtos.GuestRoleImportEntry;
 import com.wedding.planner.dto.EntourageDtos.ImportFromGuestsResult;
 import com.wedding.planner.dto.EntourageDtos.PublicEntourageMember;
 import com.wedding.planner.exception.ResourceNotFoundException;
@@ -94,22 +96,24 @@ public class EntourageService {
     }
 
     /**
-     * Adds one entourage row per guest id, copying that guest's current role name and full name.
-     * A guest with no role, or whose role isn't marked {@code entourageEligible}, is skipped
-     * ({@code skippedNotEligible}) — the frontend picker already filters these out, so this is a
-     * defensive backstop against a crafted request, not the primary UX. A guest whose name
-     * (trimmed, case-insensitive) already matches an existing entourage member is skipped too
-     * ({@code skippedAlreadyPresent}), so re-running an import is idempotent. A guest id from
-     * another project 404s the whole request — same defence-in-depth as every other child
-     * resource in this codebase.
+     * Adds one entourage row per (guest, role) pair, copying that guest's full name and the
+     * role's name. A guest can be checked under several of their own roles at once — Kevin can
+     * be imported as both "Groomsman" and "Candle" in one submission, producing two separate
+     * rows. Dedup is by the (name, role) pair rather than name alone, so re-submitting the same
+     * pair is idempotent but the same person under two different roles is legitimately two
+     * rows. A pair whose role isn't actually assigned to that guest, or isn't marked
+     * {@code entourageEligible}, is skipped ({@code skippedNotEligible}) — the frontend picker
+     * already filters these out, so this is a defensive backstop against a crafted request, not
+     * the primary UX. A guest id from another project 404s the whole request — same
+     * defence-in-depth as every other child resource in this codebase.
      */
     @Transactional
-    public ImportFromGuestsResult importFromGuests(UUID projectId, List<UUID> guestIds) {
+    public ImportFromGuestsResult importFromGuests(UUID projectId, List<GuestRoleImportEntry> entries) {
         Project project = requireProject(projectId);
         List<EntourageMember> existing = orderedMembers(projectId);
-        Set<String> existingNames = new HashSet<>();
+        Set<String> existingPairs = new HashSet<>();
         for (EntourageMember member : existing) {
-            existingNames.add(normalizeName(member.getName()));
+            existingPairs.add(pairKey(member.getName(), member.getRole()));
         }
         int nextOrder = existing.stream()
                 .mapToInt(EntourageMember::getSortOrder)
@@ -119,26 +123,29 @@ public class EntourageService {
         int added = 0;
         int skippedAlreadyPresent = 0;
         int skippedNotEligible = 0;
-        for (UUID guestId : guestIds) {
-            Guest guest = guestRepository.findById(guestId)
-                    .orElseThrow(() -> ResourceNotFoundException.of("Guest", guestId));
+        for (GuestRoleImportEntry entry : entries) {
+            Guest guest = guestRepository.findById(entry.guestId())
+                    .orElseThrow(() -> ResourceNotFoundException.of("Guest", entry.guestId()));
             if (!guest.getProject().getId().equals(projectId)) {
-                throw ResourceNotFoundException.of("Guest", guestId);
+                throw ResourceNotFoundException.of("Guest", entry.guestId());
             }
-            if (guest.getRole() == null || !guest.getRole().isEntourageEligible()) {
+            GuestRole role = guest.getRoles().stream()
+                    .filter(r -> r.getId().equals(entry.roleId()))
+                    .findFirst()
+                    .orElse(null);
+            if (role == null || !role.isEntourageEligible()) {
                 skippedNotEligible++;
                 continue;
             }
-            String normalizedName = normalizeName(guest.getFullName());
-            if (existingNames.contains(normalizedName)) {
+            String key = pairKey(guest.getFullName(), role.getName());
+            if (existingPairs.contains(key)) {
                 skippedAlreadyPresent++;
                 continue;
             }
-            EntourageMember member = new EntourageMember(
-                    guest.getRole().getName(), guest.getFullName(), nextOrder++);
+            EntourageMember member = new EntourageMember(role.getName(), guest.getFullName(), nextOrder++);
             project.addEntourageMember(member);
             entourageMemberRepository.save(member);
-            existingNames.add(normalizedName);
+            existingPairs.add(key);
             added++;
         }
 
@@ -147,6 +154,10 @@ public class EntourageService {
                     ActivityAction.CREATE, "Imported " + added + " member(s) from the guest list");
         }
         return new ImportFromGuestsResult(added, skippedAlreadyPresent, skippedNotEligible);
+    }
+
+    private String pairKey(String name, String role) {
+        return normalizeName(name) + "|" + normalizeName(role);
     }
 
     private String normalizeName(String name) {

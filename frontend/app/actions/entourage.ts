@@ -63,15 +63,22 @@ export async function importEntourageFromGuestsAction(
   _prev: ImportActionState,
   formData: FormData,
 ): Promise<ImportActionState> {
-  const guestIds = formData.getAll("guestId").map(String).filter(Boolean);
-  if (guestIds.length === 0) return { error: "Select at least one guest to import." };
+  const entries = formData
+    .getAll("entry")
+    .map(String)
+    .filter(Boolean)
+    .map((raw) => {
+      const [guestId, roleId] = raw.split(":");
+      return { guestId, roleId };
+    });
+  if (entries.length === 0) return { error: "Select at least one guest to import." };
 
   let result: ImportFromGuestsResult;
   try {
     const token = await getToken();
     result = await apiFetch<ImportFromGuestsResult>(
       `/api/projects/${projectId}/entourage/import-from-guests`,
-      { method: "POST", token, body: { guestIds } },
+      { method: "POST", token, body: { entries } },
     );
   } catch (error) {
     return { error: error instanceof ApiError ? error.message : "Something went wrong." };

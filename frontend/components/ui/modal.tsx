@@ -62,7 +62,7 @@ export function Modal({
       />
       <div
         className={cn(
-          "relative z-10 w-full max-w-lg rounded-xl border border-border bg-card text-card-foreground shadow-xl",
+          "relative z-10 flex max-h-[90vh] w-full max-w-lg flex-col rounded-xl border border-border bg-card text-card-foreground shadow-xl",
           className,
         )}
       >
@@ -85,7 +85,7 @@ export function Modal({
             <X />
           </Button>
         </div>
-        {children && <div className="p-6 pt-2">{children}</div>}
+        {children && <div className="min-h-0 overflow-y-auto p-6 pt-2">{children}</div>}
         {footer && (
           <div className="flex items-center justify-end gap-3 border-t border-border p-4">
             {footer}

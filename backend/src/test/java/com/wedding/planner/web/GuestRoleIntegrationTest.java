@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wedding.planner.AbstractIntegrationTest;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -130,7 +131,7 @@ class GuestRoleIntegrationTest extends AbstractIntegrationTest {
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "firstName", "Best Man", "lastName", "Bob",
                                 "rsvpStatus", "ATTENDING", "partySize", 1,
-                                "roleId", roleId(planner, "BEST_MAN")))))
+                                "roleIds", List.of(roleId(planner, "BEST_MAN"))))))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(delete("/api/admin/guest-roles/" + roleId(admin, "BEST_MAN"))
@@ -257,7 +258,9 @@ class GuestRoleIntegrationTest extends AbstractIntegrationTest {
         body.put("priority", "A");
         body.put("relatedTo", "GROOM");
         body.put("relationship", "CLOSE_FRIEND");
-        body.put("roleId", roleId(planner, "PRINCIPAL_SPONSOR"));
+        // A guest can carry more than one role at once.
+        body.put("roleIds", List.of(
+                roleId(planner, "PRINCIPAL_SPONSOR"), roleId(planner, "BEST_MAN")));
         mockMvc.perform(post("/api/projects/" + projectId + "/guests")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -266,11 +269,13 @@ class GuestRoleIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.priority").value("A"))
                 .andExpect(jsonPath("$.relatedTo").value("GROOM"))
                 .andExpect(jsonPath("$.relationship").value("CLOSE_FRIEND"))
-                .andExpect(jsonPath("$.roleName").value("Principal Sponsor"));
+                .andExpect(jsonPath("$.roles.length()").value(2))
+                .andExpect(jsonPath("$.roles[*].name")
+                        .value(org.hamcrest.Matchers.containsInAnyOrder("Principal Sponsor", "Best Man")));
 
         // An unknown roleId is a 400.
         body.put("firstName", "Bad");
-        body.put("roleId", "00000000-0000-0000-0000-000000000000");
+        body.put("roleIds", List.of("00000000-0000-0000-0000-000000000000"));
         mockMvc.perform(post("/api/projects/" + projectId + "/guests")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner)
                         .contentType(MediaType.APPLICATION_JSON)

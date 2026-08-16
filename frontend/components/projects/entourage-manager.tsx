@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/toast";
-import type { EntourageMemberResponse, GuestResponse } from "@/lib/types";
+import type { EntourageMemberResponse, GuestResponse, GuestRoleAssignmentResponse } from "@/lib/types";
 
 const initialState: ActionState = {};
 const initialImportState: ImportActionState = {};
@@ -74,12 +74,14 @@ export function EntourageManager({
   }, [importState]);
 
   const eligibleByRole = useMemo(() => {
-    const groups = new Map<string, GuestResponse[]>();
+    const groups = new Map<string, Array<{ guest: GuestResponse; role: GuestRoleAssignmentResponse }>>();
     for (const guest of guests) {
-      if (!guest.roleEntourageEligible || !guest.roleName) continue;
-      const list = groups.get(guest.roleName) ?? [];
-      list.push(guest);
-      groups.set(guest.roleName, list);
+      for (const role of guest.roles) {
+        if (!role.entourageEligible) continue;
+        const list = groups.get(role.name) ?? [];
+        list.push({ guest, role });
+        groups.set(role.name, list);
+      }
     }
     return groups;
   }, [guests]);
@@ -141,19 +143,19 @@ export function EntourageManager({
         >
           <p className="text-sm font-medium">Import from guests</p>
           <div key={pickerGeneration} className="space-y-2">
-            {Array.from(eligibleByRole.entries()).map(([roleName, roleGuests]) => (
+            {Array.from(eligibleByRole.entries()).map(([roleName, entries]) => (
               <details key={roleName} open className="rounded-md border border-border/60 p-2">
                 <summary className="cursor-pointer text-sm font-medium">
-                  {roleName} ({roleGuests.length})
+                  {roleName} ({entries.length})
                 </summary>
                 <ul className="mt-2 space-y-1 pl-1">
-                  {roleGuests.map((guest) => (
-                    <li key={guest.id}>
+                  {entries.map(({ guest, role }) => (
+                    <li key={`${guest.id}:${role.id}`}>
                       <label className="flex items-center gap-2 text-sm">
                         <input
                           type="checkbox"
-                          name="guestId"
-                          value={guest.id}
+                          name="entry"
+                          value={`${guest.id}:${role.id}`}
                           className="size-4 rounded border-input"
                           onChange={(e) =>
                             setSelectedCount((count) => (e.target.checked ? count + 1 : count - 1))

@@ -44,7 +44,7 @@ export async function GET(
         type: "guest" as const,
         id: g.id,
         label: guestFullName(g),
-        sublabel: g.roleName ?? g.email,
+        sublabel: g.roles.map((r) => r.name).join(", ") || g.email,
         href: `${base}/guests`,
       })),
       ...vendors.map((v) => ({

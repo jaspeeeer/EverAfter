@@ -47,7 +47,7 @@ public class GuestService {
     @Transactional(readOnly = true)
     public List<GuestResponse> list(UUID projectId) {
         requireProject(projectId);
-        return guestRepository.findByProjectId(projectId).stream()
+        return guestRepository.findByProjectIdWithRoles(projectId).stream()
                 .map(GuestResponse::from)
                 .toList();
     }
@@ -98,7 +98,7 @@ public class GuestService {
         guest.setPriority(request.priority());
         guest.setRelatedTo(request.relatedTo());
         guest.setRelationship(request.relationship());
-        guest.setRole(guestRoleService.requireForAssignmentOrNull(request.roleId()));
+        guest.replaceRoles(guestRoleService.resolveRoles(request.roleIds()));
         String summary = rsvpChanged
                 ? "Marked \"" + guest.getFullName() + "\" as " + guest.getRsvpStatus().name()
                 : "Updated guest \"" + guest.getFullName() + "\"";
@@ -119,7 +119,7 @@ public class GuestService {
         guest.setPriority(request.priority());
         guest.setRelatedTo(request.relatedTo());
         guest.setRelationship(request.relationship());
-        guest.setRole(guestRoleService.requireForAssignmentOrNull(request.roleId()));
+        guest.replaceRoles(guestRoleService.resolveRoles(request.roleIds()));
         return guest;
     }
 

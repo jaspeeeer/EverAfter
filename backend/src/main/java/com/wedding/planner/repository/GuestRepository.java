@@ -15,10 +15,14 @@ public interface GuestRepository extends JpaRepository<Guest, UUID> {
 
     List<Guest> findByProjectId(UUID projectId);
 
+    /** Eagerly fetches roles so responses map outside the persistence context, avoiding N+1. */
+    @Query("select distinct g from Guest g left join fetch g.roles where g.project.id = :projectId")
+    List<Guest> findByProjectIdWithRoles(@Param("projectId") UUID projectId);
+
     Optional<Guest> findByRsvpToken(UUID rsvpToken);
 
-    /** Whether any guest references a role — used to gate role deletion. */
-    long countByRoleId(UUID roleId);
+    /** Whether any guest references a role via guest_role_assignments — used to gate role deletion. */
+    long countByRolesId(UUID roleId);
 
     /**
      * Restores a soft-deleted guest, scoped to its project; returns the row count (0 = not found

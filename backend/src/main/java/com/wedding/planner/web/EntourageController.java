@@ -78,6 +78,6 @@ public class EntourageController {
     @PreAuthorize("@projectSecurity.canAccess(#projectId, authentication)")
     public ImportFromGuestsResult importFromGuests(@PathVariable UUID projectId,
                                                    @Valid @RequestBody ImportFromGuestsRequest request) {
-        return entourageService.importFromGuests(projectId, request.guestIds());
+        return entourageService.importFromGuests(projectId, request.entries());
     }
 }

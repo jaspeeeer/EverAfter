@@ -31,7 +31,7 @@ export interface GuestBody {
   priority: GuestPriority | null;
   relatedTo: RelatedTo | null;
   relationship: GuestRelationship | null;
-  roleId: string | null;
+  roleIds: string[];
 }
 
 /** Parses the shared guest form fields; returns an error message on invalid input. */
@@ -52,7 +52,7 @@ function parseGuestForm(formData: FormData): GuestBody | string {
   const relatedTo = (String(formData.get("relatedTo") ?? "").trim() || null) as RelatedTo | null;
   const relationship = (String(formData.get("relationship") ?? "").trim() ||
     null) as GuestRelationship | null;
-  const roleId = String(formData.get("roleId") ?? "").trim() || null;
+  const roleIds = formData.getAll("roleIds").map(String).filter(Boolean);
 
   if (!firstName) return "Guest first name is required.";
   let partySize: number | null = null;
@@ -81,7 +81,7 @@ function parseGuestForm(formData: FormData): GuestBody | string {
     priority,
     relatedTo,
     relationship,
-    roleId,
+    roleIds,
   };
 }
 

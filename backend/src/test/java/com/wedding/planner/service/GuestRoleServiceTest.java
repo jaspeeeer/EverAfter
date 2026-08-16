@@ -127,4 +127,29 @@ class GuestRoleServiceTest {
         assertThatThrownBy(() -> guestRoleService.delete(parent.getId()))
                 .isInstanceOf(BadRequestException.class);
     }
+
+    @Test
+    void deletingARoleAssignedToAGuestDeactivatesInsteadOfHardDeleting() {
+        GuestRole role = roleWithId("Best Man", "BEST_MAN", 0);
+        when(roleRepository.findById(role.getId())).thenReturn(Optional.of(role));
+        when(roleRepository.countByParentId(role.getId())).thenReturn(0L);
+        when(guestRepository.countByRolesId(role.getId())).thenReturn(1L);
+
+        guestRoleService.delete(role.getId());
+
+        assertThat(role.isActive()).isFalse();
+        org.mockito.Mockito.verify(roleRepository, org.mockito.Mockito.never()).delete(role);
+    }
+
+    @Test
+    void deletingAnUnreferencedRoleHardDeletes() {
+        GuestRole role = roleWithId("Emcee", "EMCEE", 0);
+        when(roleRepository.findById(role.getId())).thenReturn(Optional.of(role));
+        when(roleRepository.countByParentId(role.getId())).thenReturn(0L);
+        when(guestRepository.countByRolesId(role.getId())).thenReturn(0L);
+
+        guestRoleService.delete(role.getId());
+
+        org.mockito.Mockito.verify(roleRepository).delete(role);
+    }
 }

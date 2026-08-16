@@ -9,7 +9,9 @@ import com.wedding.planner.exception.ConflictException;
 import com.wedding.planner.exception.ResourceNotFoundException;
 import com.wedding.planner.repository.GuestRepository;
 import com.wedding.planner.repository.GuestRoleRepository;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -88,7 +90,7 @@ public class GuestRoleService {
         if (roleRepository.countByParentId(id) > 0) {
             throw new BadRequestException("This role has sub-roles; remove them first");
         }
-        if (guestRepository.countByRoleId(id) > 0) {
+        if (guestRepository.countByRolesId(id) > 0) {
             role.setActive(false);
         } else {
             roleRepository.delete(role);
@@ -115,17 +117,24 @@ public class GuestRoleService {
     }
 
     /**
-     * Resolves an optional role id to the entity for guest writes. Null id → null (role is
-     * optional); existence is otherwise required (400 if unknown). The {@code active} flag governs
-     * only what pickers show, so an existing guest whose role was deactivated can still be edited.
+     * Resolves a list of role ids to their entities for a guest write. Null/empty → no roles.
+     * Dedupes; existence is required for every id (400 if unknown). Roles are global (not
+     * project-scoped), so — unlike a project-scoped resource — no tenant check applies here.
+     * The {@code active} flag governs only what pickers show, so an existing guest whose role
+     * was deactivated can still carry it (and still be edited to keep or drop it).
      */
     @Transactional(readOnly = true)
-    public GuestRole requireForAssignmentOrNull(UUID id) {
-        if (id == null) {
-            return null;
+    public Set<GuestRole> resolveRoles(List<UUID> roleIds) {
+        Set<GuestRole> roles = new HashSet<>();
+        if (roleIds == null) {
+            return roles;
         }
-        return roleRepository.findById(id)
-                .orElseThrow(() -> new BadRequestException("Unknown role: " + id));
+        for (UUID roleId : new HashSet<>(roleIds)) {
+            GuestRole role = roleRepository.findById(roleId)
+                    .orElseThrow(() -> new BadRequestException("Unknown role: " + roleId));
+            roles.add(role);
+        }
+        return roles;
     }
 
     private GuestRole requireRole(UUID id) {

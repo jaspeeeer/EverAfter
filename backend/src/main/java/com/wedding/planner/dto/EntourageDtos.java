@@ -1,8 +1,10 @@
 package com.wedding.planner.dto;
 
 import com.wedding.planner.domain.EntourageMember;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 import java.util.UUID;
@@ -35,8 +37,12 @@ public final class EntourageDtos {
         }
     }
 
-    /** Bulk-add: one entourage row per guest id, copying that guest's current role name. */
-    public record ImportFromGuestsRequest(@NotEmpty List<UUID> guestIds) {
+    /** One (guest, role) pair the picker checked — a guest can be checked under several role groups. */
+    public record GuestRoleImportEntry(@NotNull UUID guestId, @NotNull UUID roleId) {
+    }
+
+    /** Bulk-add: one entourage row per (guest, role) pair, copying the guest's name and role's name. */
+    public record ImportFromGuestsRequest(@NotEmpty List<@Valid GuestRoleImportEntry> entries) {
     }
 
     /**

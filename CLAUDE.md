@@ -138,14 +138,22 @@ than the admin-managed-lookup shape (`guest_roles`/`vendor_categories`). `V22` a
 `guest_roles.entourage_eligible` (default false, backfilled true for the eight seeded
 wedding-party roles) — an **admin-managed** flag, not a couple-facing setting, controlling which
 roles' guests appear in the Entourage card's "import from guests" picker
-(`POST .../entourage/import-from-guests`, dedup by name, admin toggles it on the existing Guest
-Roles page). `V24` added `guest_roles.parent_id` (nullable self-FK, `ON DELETE SET NULL`) —
-one level of sub-role nesting, mirroring `Vendor.parent_id`'s package-item pattern (`V11`), used
-to organize Secondary Sponsor into eight sub-roles (Candle, Veil, Cord, Ring Bearer, Arrhae
-Bearer, Rosary Bearer, Bible Bearer, Flower Girls) — the last two reparent the existing
-`RING_BEARER`/`FLOWER_GIRL` rows rather than duplicating them. The admin Guest Roles page's
-create/edit forms ask which top-level role (if any) a new role is a sub-role of. See
-`docs/attire-and-entourage.md`. See `docs/rsvp.md` for the full guest-facing feature.
+(`POST .../entourage/import-from-guests`, dedup by (name, role) pair, admin toggles it on the
+existing Guest Roles page). `V24` added `guest_roles.parent_id` (nullable self-FK,
+`ON DELETE SET NULL`) — one level of sub-role nesting, mirroring `Vendor.parent_id`'s
+package-item pattern (`V11`), used to organize Secondary Sponsor into eight sub-roles (Candle,
+Veil, Cord, Ring Bearer, Arrhae Bearer, Rosary Bearer, Bible Bearer, Flower Girls) — the last
+two reparent the existing `RING_BEARER`/`FLOWER_GIRL` rows rather than duplicating them. The
+admin Guest Roles page's create/edit forms ask which top-level role (if any) a new role is a
+sub-role of. `V25` replaced `guests.role_id` (a single nullable FK) with a `guest_role_assignments`
+join table — a guest may carry zero, one, or several roles at once — shaped exactly like
+`timeline_event_vendors` (`V5`): composite PK, both FKs `ON DELETE CASCADE`,
+`Guest.roles`/`replaceRoles(Set<GuestRole>)` mirroring `TimelineEvent.vendors`/`replaceVendors`.
+The Entourage import picker now groups by **(guest, role) pairs**, not guest alone, so a guest
+with two eligible roles (e.g. a Groomsman who's also a Secondary Sponsor sub-role like Candle)
+can be imported as two separate entourage rows in one submission. See
+`docs/attire-and-entourage.md` and `docs/guests.md`. See `docs/rsvp.md` for the full
+guest-facing feature.
 
 Supabase specifics: connect via the **Session Pooler**
 (`aws-1-ap-northeast-2.pooler.supabase.com:5432`, user `postgres.<project-ref>`,

@@ -688,8 +688,10 @@ class InvitationRsvpAdminIntegrationTest extends AbstractIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "guestIds",
-                                List.of(eligibleGuestId, ineligibleGuestId, noRoleGuestId)))))
+                                "entries", List.of(
+                                        Map.of("guestId", eligibleGuestId, "roleId", bestManRoleId),
+                                        Map.of("guestId", ineligibleGuestId, "roleId", parentsRoleId),
+                                        Map.of("guestId", noRoleGuestId, "roleId", bestManRoleId))))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.added").value(1))
                 .andExpect(jsonPath("$.skippedNotEligible").value(2))
@@ -703,12 +705,13 @@ class InvitationRsvpAdminIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$[0].role").value("Best Man"))
                 .andExpect(jsonPath("$[0].sortOrder").value(0));
 
-        // Re-running the import against the same guest is a no-op, not a duplicate row.
+        // Re-running the import against the same (guest, role) pair is a no-op, not a duplicate row.
         mockMvc.perform(post("/api/projects/" + projectId + "/entourage/import-from-guests")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(
-                                Map.of("guestIds", List.of(eligibleGuestId)))))
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "entries",
+                                List.of(Map.of("guestId", eligibleGuestId, "roleId", bestManRoleId))))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.added").value(0))
                 .andExpect(jsonPath("$.skippedAlreadyPresent").value(1));
@@ -738,7 +741,7 @@ class InvitationRsvpAdminIntegrationTest extends AbstractIntegrationTest {
         body.put("rsvpStatus", "PENDING");
         body.put("partySize", 1);
         if (roleId != null) {
-            body.put("roleId", roleId);
+            body.put("roleIds", List.of(roleId));
         }
         MvcResult result = mockMvc.perform(post("/api/projects/" + projectId + "/guests")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)

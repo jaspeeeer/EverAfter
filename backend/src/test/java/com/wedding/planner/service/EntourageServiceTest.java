@@ -13,6 +13,7 @@ import com.wedding.planner.domain.RsvpStatus;
 import com.wedding.planner.domain.User;
 import com.wedding.planner.dto.EntourageDtos.EntourageMemberRequest;
 import com.wedding.planner.dto.EntourageDtos.EntourageMemberResponse;
+import com.wedding.planner.dto.EntourageDtos.GuestRoleImportEntry;
 import com.wedding.planner.dto.EntourageDtos.ImportFromGuestsResult;
 import com.wedding.planner.dto.EntourageDtos.PublicEntourageMember;
 import com.wedding.planner.exception.ResourceNotFoundException;
@@ -21,6 +22,7 @@ import com.wedding.planner.repository.GuestRepository;
 import com.wedding.planner.repository.ProjectRepository;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -85,19 +87,22 @@ class EntourageServiceTest {
         Guest guest = new Guest(fullName, RsvpStatus.PENDING, 1);
         ReflectionTestUtils.setField(guest, "id", UUID.randomUUID());
         guest.setProject(project);
-        guest.setRole(role);
+        guest.replaceRoles(role == null ? Set.of() : Set.of(role));
         when(guestRepository.findById(guest.getId())).thenReturn(Optional.of(guest));
         return guest;
     }
 
+    /** A role with a real id set — importFromGuests matches guest roles by id. */
     private GuestRole eligibleRole(String name) {
         GuestRole role = new GuestRole(name, name.toUpperCase().replace(' ', '_'), 0);
+        ReflectionTestUtils.setField(role, "id", UUID.randomUUID());
         role.setEntourageEligible(true);
         return role;
     }
 
     private GuestRole ineligibleRole(String name) {
         GuestRole role = new GuestRole(name, name.toUpperCase().replace(' ', '_'), 0);
+        ReflectionTestUtils.setField(role, "id", UUID.randomUUID());
         role.setEntourageEligible(false);
         return role;
     }
@@ -198,12 +203,18 @@ class EntourageServiceTest {
         Project project = projectWithId(projectId);
         when(entourageMemberRepository.findByProjectIdOrderBySortOrderAsc(projectId))
                 .thenReturn(List.of());
-        Guest a = newGuest(project, "Ana Cruz", eligibleRole("Best Man"));
-        Guest b = newGuest(project, "Ben Reyes", eligibleRole("Maid of Honor"));
-        Guest c = newGuest(project, "Cara Santos", eligibleRole("Bridesmaid"));
+        GuestRole bestMan = eligibleRole("Best Man");
+        GuestRole maidOfHonor = eligibleRole("Maid of Honor");
+        GuestRole bridesmaid = eligibleRole("Bridesmaid");
+        Guest a = newGuest(project, "Ana Cruz", bestMan);
+        Guest b = newGuest(project, "Ben Reyes", maidOfHonor);
+        Guest c = newGuest(project, "Cara Santos", bridesmaid);
 
         ImportFromGuestsResult result = entourageService.importFromGuests(
-                projectId, List.of(a.getId(), b.getId(), c.getId()));
+                projectId, List.of(
+                        new GuestRoleImportEntry(a.getId(), bestMan.getId()),
+                        new GuestRoleImportEntry(b.getId(), maidOfHonor.getId()),
+                        new GuestRoleImportEntry(c.getId(), bridesmaid.getId())));
 
         assertThat(result.added()).isEqualTo(3);
         assertThat(result.skippedAlreadyPresent()).isZero();
@@ -219,11 +230,15 @@ class EntourageServiceTest {
         EntourageMember existing = plainMember(project, "Best Man", "Ana Cruz", 0);
         when(entourageMemberRepository.findByProjectIdOrderBySortOrderAsc(projectId))
                 .thenReturn(List.of(existing));
-        Guest duplicate = newGuest(project, "Ana Cruz", eligibleRole("Best Man"));
-        Guest fresh = newGuest(project, "Ben Reyes", eligibleRole("Groomsman"));
+        GuestRole bestMan = eligibleRole("Best Man");
+        GuestRole groomsman = eligibleRole("Groomsman");
+        Guest duplicate = newGuest(project, "Ana Cruz", bestMan);
+        Guest fresh = newGuest(project, "Ben Reyes", groomsman);
 
         ImportFromGuestsResult result = entourageService.importFromGuests(
-                projectId, List.of(duplicate.getId(), fresh.getId()));
+                projectId, List.of(
+                        new GuestRoleImportEntry(duplicate.getId(), bestMan.getId()),
+                        new GuestRoleImportEntry(fresh.getId(), groomsman.getId())));
 
         assertThat(result.added()).isEqualTo(1);
         assertThat(result.skippedAlreadyPresent()).isEqualTo(1);
@@ -236,10 +251,13 @@ class EntourageServiceTest {
         when(entourageMemberRepository.findByProjectIdOrderBySortOrderAsc(projectId))
                 .thenReturn(List.of());
         Guest noRole = newGuest(project, "No Role", null);
-        Guest ineligible = newGuest(project, "Not Eligible", ineligibleRole("Parents"));
+        GuestRole parents = ineligibleRole("Parents");
+        Guest ineligible = newGuest(project, "Not Eligible", parents);
 
         ImportFromGuestsResult result = entourageService.importFromGuests(
-                projectId, List.of(noRole.getId(), ineligible.getId()));
+                projectId, List.of(
+                        new GuestRoleImportEntry(noRole.getId(), UUID.randomUUID()),
+                        new GuestRoleImportEntry(ineligible.getId(), parents.getId())));
 
         assertThat(result.added()).isZero();
         assertThat(result.skippedNotEligible()).isEqualTo(2);
@@ -248,13 +266,58 @@ class EntourageServiceTest {
     @Test
     void importFromGuestsRejectsAGuestFromAnotherProject() {
         UUID projectId = UUID.randomUUID();
-        Project project = projectWithId(projectId);
+        projectWithId(projectId);
         when(entourageMemberRepository.findByProjectIdOrderBySortOrderAsc(projectId))
                 .thenReturn(List.of());
         Project otherProject = newProject(UUID.randomUUID());
-        Guest otherGuest = newGuest(otherProject, "Outsider", eligibleRole("Best Man"));
+        GuestRole bestMan = eligibleRole("Best Man");
+        Guest otherGuest = newGuest(otherProject, "Outsider", bestMan);
 
-        assertThatThrownBy(() -> entourageService.importFromGuests(projectId, List.of(otherGuest.getId())))
+        assertThatThrownBy(() -> entourageService.importFromGuests(projectId,
+                List.of(new GuestRoleImportEntry(otherGuest.getId(), bestMan.getId()))))
                 .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void importingTheSameGuestUnderTwoEligibleRolesCreatesTwoSeparateEntourageRows() {
+        UUID projectId = UUID.randomUUID();
+        Project project = projectWithId(projectId);
+        when(entourageMemberRepository.findByProjectIdOrderBySortOrderAsc(projectId))
+                .thenReturn(List.of());
+        GuestRole groomsman = eligibleRole("Groomsman");
+        GuestRole candle = eligibleRole("Candle");
+        Guest kevin = newGuest(project, "Kevin", null);
+        kevin.replaceRoles(Set.of(groomsman, candle));
+
+        ImportFromGuestsResult result = entourageService.importFromGuests(
+                projectId, List.of(
+                        new GuestRoleImportEntry(kevin.getId(), groomsman.getId()),
+                        new GuestRoleImportEntry(kevin.getId(), candle.getId())));
+
+        assertThat(result.added()).isEqualTo(2);
+        assertThat(project.getEntourageMembers()).extracting(EntourageMember::getRole)
+                .containsExactlyInAnyOrder("Groomsman", "Candle");
+        assertThat(project.getEntourageMembers()).extracting(EntourageMember::getName)
+                .containsExactly("Kevin", "Kevin");
+    }
+
+    @Test
+    void reImportingTheSameGuestRolePairIsANoOp() {
+        UUID projectId = UUID.randomUUID();
+        Project project = projectWithId(projectId);
+        // A live reference to the project's own list, so a member added by the first import call
+        // is visible to the second call's dedup check too.
+        when(entourageMemberRepository.findByProjectIdOrderBySortOrderAsc(projectId))
+                .thenReturn(project.getEntourageMembers());
+        GuestRole bestMan = eligibleRole("Best Man");
+        Guest guest = newGuest(project, "Ana Cruz", bestMan);
+        GuestRoleImportEntry entry = new GuestRoleImportEntry(guest.getId(), bestMan.getId());
+
+        entourageService.importFromGuests(projectId, List.of(entry));
+        ImportFromGuestsResult result = entourageService.importFromGuests(projectId, List.of(entry));
+
+        assertThat(result.added()).isZero();
+        assertThat(result.skippedAlreadyPresent()).isEqualTo(1);
+        assertThat(project.getEntourageMembers()).hasSize(1);
     }
 }

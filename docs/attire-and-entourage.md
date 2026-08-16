@@ -57,7 +57,7 @@ not manage-only):
 | `PUT` | `/entourage/{memberId}` | update role/name |
 | `DELETE` | `/entourage/{memberId}` | remove |
 | `PUT` | `/entourage/{memberId}/move-up` \| `/move-down` | swap `sortOrder` with the adjacent member; a no-op at either end |
-| `POST` | `/entourage/import-from-guests` | bulk-add from `{ guestIds: UUID[] }`; returns `{ added, skippedAlreadyPresent, skippedNotEligible }` |
+| `POST` | `/entourage/import-from-guests` | bulk-add from `{ entries: {guestId, roleId}[] }`; returns `{ added, skippedAlreadyPresent, skippedNotEligible }` |
 
 Reordering is move-up/move-down, not drag-and-drop — deliberately, to keep this at "simple list"
 scope rather than wiring `@dnd-kit` (already a dependency, used by the Kanban board) for a list
@@ -88,16 +88,22 @@ card separate. Add via a small `{role, name}` form; each row has move-up/move-do
 buttons calling `app/actions/entourage.ts` directly (not through a `<form>`), matching the
 pattern `project-photo-upload.tsx` uses for its Remove button.
 
-A second **"Import from guests"** form in the same card lists every guest whose role is
-`entourage_eligible` (via `GuestResponse.roleEntourageEligible`), grouped by role name in
-collapsible `<details>` sections, with a checkbox per guest and a live "N selected" count. Submits
-to `import-from-guests` via `importEntourageFromGuestsAction`, and the toast composes the
-`{added, skippedAlreadyPresent, skippedNotEligible}` counts into one line. Re-selecting an
-already-imported guest is a no-op server-side (dedup by name), not an error. The checkbox list is
-force-remounted (via a generation counter bumped from the form's `onReset` handler) after each
-successful import rather than relying on the native `form.reset()` to uncheck them — calling
-`.reset()` directly desyncs React's internal checked-value tracker from the DOM for uncontrolled
-checkboxes, so a later click toggles the box visually but silently stops firing `onChange`.
+A second **"Import from guests"** form in the same card lists every **(guest, role)** pair where
+the role is `entourage_eligible` — since a guest can now carry several roles at once
+(`docs/guests.md`'s many-to-many note), the same guest can appear as a separate checkbox row
+under more than one role's group heading (e.g. under both "Groomsman" and "Candle"), grouped by
+role name in collapsible `<details>` sections, with a checkbox per (guest, role) pair (its
+`value` encodes `${guestId}:${roleId}`) and a live "N selected" count. Submits to
+`import-from-guests` via `importEntourageFromGuestsAction`, which splits each checked value back
+into a `{guestId, roleId}` entry; the toast composes the `{added, skippedAlreadyPresent,
+skippedNotEligible}` counts into one line. `EntourageService.importFromGuests` dedupes by the
+**(name, role)** pair, not name alone — re-selecting an already-imported (guest, role) pair is a
+no-op, but the same guest checked under a *different* role legitimately creates a second
+entourage row. The checkbox list is force-remounted (via a generation counter bumped from the
+form's `onReset` handler) after each successful import rather than relying on the native
+`form.reset()` to uncheck them — calling `.reset()` directly desyncs React's internal
+checked-value tracker from the DOM for uncontrolled checkboxes, so a later click toggles the box
+visually but silently stops firing `onChange`.
 
 **Public page** (`app/rsvp/[token]/page.tsx`): `AttireSection` (dress code, a two-column
 men/women notes grid, and palette swatches as colored circles — each carries an `aria-label` with

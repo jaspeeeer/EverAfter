@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import {
   apiCreateGuestWithRole,
+  apiCreateGuestWithRoles,
   apiCreateProject,
   apiGuestRoleId,
   apiRegister,
@@ -78,4 +79,38 @@ test("planner imports entourage members from the guest list and re-import is a n
   await page.getByRole("button", { name: "Import selected" }).click();
   await expect(page.getByText("Skipped 1 already in the entourage.")).toBeVisible();
   await expect(items).toHaveCount(1);
+});
+
+test("a guest with two eligible roles appears in both groups; checking both imports two rows", async ({
+  page,
+}) => {
+  const plannerEmail = uniqueEmail("entourage-multirole-planner");
+  const plannerToken = await apiRegister(page.request, plannerEmail, "ROLE_PLANNER");
+  const projectId = await apiCreateProject(page.request, plannerToken, "Entourage Multi-role Wedding");
+
+  const groomsmanRoleId = await apiGuestRoleId(page.request, plannerToken, "GROOMSMAN");
+  const candleRoleId = await apiGuestRoleId(page.request, plannerToken, "CANDLE");
+  await apiCreateGuestWithRoles(page.request, plannerToken, projectId, "Kevin Multi", [
+    groomsmanRoleId,
+    candleRoleId,
+  ]);
+
+  await uiLogin(page, plannerEmail);
+  await page.waitForURL("**/dashboard");
+  await page.goto(`/projects/${projectId}/settings`);
+
+  await expect(page.getByText("Groomsman (1)")).toBeVisible();
+  await expect(page.getByText("Candle (1)")).toBeVisible();
+
+  const groomsmanGroup = page.locator("details", { hasText: "Groomsman" });
+  const candleGroup = page.locator("details", { hasText: "Candle" });
+  await groomsmanGroup.getByLabel("Kevin Multi", { exact: true }).check();
+  await candleGroup.getByLabel("Kevin Multi", { exact: true }).check();
+  await page.getByRole("button", { name: "Import selected" }).click();
+  await expect(page.getByText("Added 2.")).toBeVisible();
+
+  const items = page.locator("li", { hasText: "—" });
+  await expect(items).toHaveCount(2);
+  await expect(items.filter({ hasText: "Groomsman" })).toHaveCount(1);
+  await expect(items.filter({ hasText: "Candle" })).toHaveCount(1);
 });
