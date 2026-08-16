@@ -272,7 +272,7 @@ export function GuestList({
             <option value="NONE">— No role —</option>
             {roleOptions.map((r) => (
               <option key={r.id} value={r.id}>
-                {r.name}
+                {r.parentName ? `${r.parentName} → ${r.name}` : r.name}
                 {!r.active ? " (inactive)" : ""}
               </option>
             ))}
@@ -464,7 +464,11 @@ function GuestRow({
           {guest.priority && (
             <Badge variant={PRIORITY_VARIANT[guest.priority]}>Priority {guest.priority}</Badge>
           )}
-          {guest.roleName && <Badge variant="secondary">{guest.roleName}</Badge>}
+          {guest.roleName && (
+            <Badge variant="secondary">
+              {guest.parentRoleName ? `${guest.parentRoleName} → ${guest.roleName}` : guest.roleName}
+            </Badge>
+          )}
           {guest.tableNumber != null && (
             <Badge variant="outline">
               <Armchair className="size-3" />
@@ -553,7 +557,18 @@ function GuestFormModal({
   // Keep an existing guest's (possibly deactivated) role selectable.
   const roleOptions =
     guest?.roleId && !roles.some((r) => r.id === guest.roleId)
-      ? [{ id: guest.roleId, name: guest.roleName ?? "", slug: "", active: false }, ...roles]
+      ? [
+          {
+            id: guest.roleId,
+            name: guest.roleName ?? "",
+            slug: "",
+            active: false,
+            entourageEligible: false,
+            parentId: null,
+            parentName: guest.parentRoleName,
+          },
+          ...roles,
+        ]
       : roles;
 
   return (
@@ -714,7 +729,7 @@ function GuestFormModal({
               <option value="">— No role —</option>
               {roleOptions.map((r) => (
                 <option key={r.id} value={r.id}>
-                  {r.name}
+                  {r.parentName ? `${r.parentName} → ${r.name}` : r.name}
                 </option>
               ))}
             </select>

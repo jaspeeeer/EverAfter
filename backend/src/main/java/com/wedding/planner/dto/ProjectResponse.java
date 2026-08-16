@@ -35,6 +35,8 @@ public record ProjectResponse(
         LocalDate rsvpDeadline,
         String kidsPolicy,
         String socialHashtag,
+        UUID attireMenPhotoAttachmentId,
+        UUID attireWomenPhotoAttachmentId,
         Instant createdAt,
         Instant updatedAt) {
 
@@ -68,6 +70,8 @@ public record ProjectResponse(
                 project.getRsvpDeadline(),
                 project.getKidsPolicy(),
                 project.getSocialHashtag(),
+                project.getAttireMenPhotoAttachmentId(),
+                project.getAttireWomenPhotoAttachmentId(),
                 project.getCreatedAt(),
                 project.getUpdatedAt());
     }

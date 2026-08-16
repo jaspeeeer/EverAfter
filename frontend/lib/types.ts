@@ -27,6 +27,10 @@ export interface GuestRoleResponse {
   name: string;
   slug: string;
   active: boolean;
+  entourageEligible: boolean;
+  /** Set when this role is a sub-role nested under a top-level one (e.g. "Candle" under "Secondary Sponsor"). */
+  parentId: string | null;
+  parentName: string | null;
 }
 
 export interface AuthResponse {
@@ -79,6 +83,8 @@ export interface ProjectResponse {
   kidsPolicy: string | null;
   /** Without the leading "#". */
   socialHashtag: string | null;
+  attireMenPhotoAttachmentId: string | null;
+  attireWomenPhotoAttachmentId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -93,6 +99,12 @@ export interface EntourageMemberResponse {
   role: string;
   name: string;
   sortOrder: number;
+}
+
+export interface ImportFromGuestsResult {
+  added: number;
+  skippedAlreadyPresent: number;
+  skippedNotEligible: number;
 }
 
 export interface TaskResponse {
@@ -182,6 +194,9 @@ export interface GuestResponse {
   relationship: GuestRelationship | null;
   roleId: string | null;
   roleName: string | null;
+  roleEntourageEligible: boolean;
+  /** Set when roleName is a sub-role — the top-level role it's nested under. */
+  parentRoleName: string | null;
   rsvpToken: string;
   projectId: string;
 }
@@ -215,6 +230,8 @@ export interface RsvpViewResponse {
   rsvpDeadline: string | null;
   kidsPolicy: string | null;
   socialHashtag: string | null;
+  hasAttireMenPhoto: boolean;
+  hasAttireWomenPhoto: boolean;
   /** Ordered, no ids — see PublicEntourageMember. */
   entourage: PublicEntourageMember[];
 }

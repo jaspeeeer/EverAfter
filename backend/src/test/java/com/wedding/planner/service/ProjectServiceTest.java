@@ -305,4 +305,56 @@ class ProjectServiceTest {
     void removingANonExistentReceptionPhotoIs404NotANoOp() {
         verifyRemovingNonExistentIs404(projectService::removeReceptionPhoto);
     }
+
+    @Test
+    void settingAnAttireMenPhotoForTheFirstTimeStoresTheAttachmentIdAndLogsItCorrectly() {
+        verifySettingForTheFirstTime(
+                (id, file, uploader) -> projectService.setAttireMenPhoto(id, file, uploader),
+                Project::getAttireMenPhotoAttachmentId, "attire (men) photo");
+    }
+
+    @Test
+    void settingAnAttireMenPhotoOverAnExistingOneDeletesThePriorAttachment() {
+        verifySettingOverAnExisting(
+                (id, file, uploader) -> projectService.setAttireMenPhoto(id, file, uploader),
+                Project::setAttireMenPhotoAttachmentId, Project::getAttireMenPhotoAttachmentId,
+                "attire (men) photo");
+    }
+
+    @Test
+    void removingAnAttireMenPhotoClearsTheFkAndDeletesTheAttachment() {
+        verifyRemoving(projectService::removeAttireMenPhoto, Project::setAttireMenPhotoAttachmentId,
+                Project::getAttireMenPhotoAttachmentId, "attire (men) photo");
+    }
+
+    @Test
+    void removingANonExistentAttireMenPhotoIs404NotANoOp() {
+        verifyRemovingNonExistentIs404(projectService::removeAttireMenPhoto);
+    }
+
+    @Test
+    void settingAnAttireWomenPhotoForTheFirstTimeStoresTheAttachmentIdAndLogsItCorrectly() {
+        verifySettingForTheFirstTime(
+                (id, file, uploader) -> projectService.setAttireWomenPhoto(id, file, uploader),
+                Project::getAttireWomenPhotoAttachmentId, "attire (women) photo");
+    }
+
+    @Test
+    void settingAnAttireWomenPhotoOverAnExistingOneDeletesThePriorAttachment() {
+        verifySettingOverAnExisting(
+                (id, file, uploader) -> projectService.setAttireWomenPhoto(id, file, uploader),
+                Project::setAttireWomenPhotoAttachmentId, Project::getAttireWomenPhotoAttachmentId,
+                "attire (women) photo");
+    }
+
+    @Test
+    void removingAnAttireWomenPhotoClearsTheFkAndDeletesTheAttachment() {
+        verifyRemoving(projectService::removeAttireWomenPhoto, Project::setAttireWomenPhotoAttachmentId,
+                Project::getAttireWomenPhotoAttachmentId, "attire (women) photo");
+    }
+
+    @Test
+    void removingANonExistentAttireWomenPhotoIs404NotANoOp() {
+        verifyRemovingNonExistentIs404(projectService::removeAttireWomenPhoto);
+    }
 }

@@ -67,10 +67,11 @@ public class PublicController {
     }
 
     /**
-     * A project's named photo slot (cover, ceremony, or reception), for the invitation page.
-     * Keyed by the guest's own RSVP token rather than an attachment id — the public DTO never
-     * learns the attachment's id (see {@code RsvpViewResponse#hasCover}/{@code
-     * hasCeremonyPhoto}/{@code hasReceptionPhoto}), so this is the only way in.
+     * A project's named photo slot (cover, ceremony, reception, or attire men/women), for the
+     * invitation page. Keyed by the guest's own RSVP token rather than an attachment id — the
+     * public DTO never learns the attachment's id (see {@code RsvpViewResponse#hasCover}/
+     * {@code hasCeremonyPhoto}/{@code hasReceptionPhoto}/{@code hasAttireMenPhoto}/
+     * {@code hasAttireWomenPhoto}), so this is the only way in.
      */
     @GetMapping("/rsvp/{token}/cover")
     public ResponseEntity<InputStreamResource> cover(@PathVariable UUID token) throws IOException {
@@ -85,6 +86,16 @@ public class PublicController {
     @GetMapping("/rsvp/{token}/reception-photo")
     public ResponseEntity<InputStreamResource> receptionPhoto(@PathVariable UUID token) throws IOException {
         return streamPhoto(attachmentService.downloadReceptionPhoto(guestService.projectIdByRsvpToken(token)));
+    }
+
+    @GetMapping("/rsvp/{token}/attire-men-photo")
+    public ResponseEntity<InputStreamResource> attireMenPhoto(@PathVariable UUID token) throws IOException {
+        return streamPhoto(attachmentService.downloadAttireMenPhoto(guestService.projectIdByRsvpToken(token)));
+    }
+
+    @GetMapping("/rsvp/{token}/attire-women-photo")
+    public ResponseEntity<InputStreamResource> attireWomenPhoto(@PathVariable UUID token) throws IOException {
+        return streamPhoto(attachmentService.downloadAttireWomenPhoto(guestService.projectIdByRsvpToken(token)));
     }
 
     private ResponseEntity<InputStreamResource> streamPhoto(AttachmentService.Download download) {

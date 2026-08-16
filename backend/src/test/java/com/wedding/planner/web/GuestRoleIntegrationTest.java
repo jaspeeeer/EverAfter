@@ -1,8 +1,10 @@
 package com.wedding.planner.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -141,6 +143,106 @@ class GuestRoleIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(get("/api/admin/guest-roles")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + admin))
                 .andExpect(jsonPath("$[?(@.slug == 'BEST_MAN' && @.active == false)]").exists());
+    }
+
+    @Test
+    void seededEntourageRolesAreEligibleAndAdminCanToggleTheFlag() throws Exception {
+        String admin = loginAdmin();
+
+        mockMvc.perform(get("/api/admin/guest-roles")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + admin))
+                .andExpect(jsonPath("$[?(@.slug == 'BEST_MAN')].entourageEligible").value(true))
+                .andExpect(jsonPath("$[?(@.slug == 'PARENTS')].entourageEligible").value(false));
+
+        // A newly created role defaults to ineligible unless the request says otherwise.
+        mockMvc.perform(post("/api/admin/guest-roles")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + admin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                Map.of("name", "Emcee", "entourageEligible", true))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.entourageEligible").value(true));
+
+        // Admin toggles an existing (seeded) role off, then back on.
+        String parentsId = roleId(admin, "PARENTS");
+        mockMvc.perform(put("/api/admin/guest-roles/" + parentsId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + admin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name", "Parents", "active", true, "entourageEligible", true))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.entourageEligible").value(true));
+    }
+
+    @Test
+    void secondarySponsorSubRolesAreSeededAndAdminCanAddAndReparent() throws Exception {
+        String admin = loginAdmin();
+
+        MvcResult adminList = mockMvc.perform(get("/api/admin/guest-roles")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + admin))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode roles = json(adminList);
+
+        // Six brand-new sub-roles, seeded under Secondary Sponsor.
+        for (String slug : new String[] {
+                "CANDLE", "VEIL", "CORD", "ARRHAE_BEARER", "ROSARY_BEARER", "BIBLE_BEARER"}) {
+            JsonNode role = findBySlug(roles, slug);
+            assertThat(role.get("parentName").asText()).isEqualTo("Secondary Sponsor");
+        }
+
+        // Ring Bearer and Flower Girls (renamed from Flower Girl) are reparented, not new rows.
+        JsonNode ringBearer = findBySlug(roles, "RING_BEARER");
+        assertThat(ringBearer.get("parentName").asText()).isEqualTo("Secondary Sponsor");
+        JsonNode flowerGirls = findBySlug(roles, "FLOWER_GIRL");
+        assertThat(flowerGirls.get("parentName").asText()).isEqualTo("Secondary Sponsor");
+        assertThat(flowerGirls.get("name").asText()).isEqualTo("Flower Girls");
+
+        // Admin creates a new sub-role under Secondary Sponsor; it round-trips with the parent set.
+        String secondarySponsorId = roleId(admin, "SECONDARY_SPONSOR");
+        MvcResult created = mockMvc.perform(post("/api/admin/guest-roles")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + admin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name", "Coin Bearer", "entourageEligible", true,
+                                "parentId", secondarySponsorId))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.parentName").value("Secondary Sponsor"))
+                .andReturn();
+        String coinBearerId = json(created).get("id").asText();
+
+        // Reparenting Secondary Sponsor (which now has children) under another role is rejected.
+        String bestManId = roleId(admin, "BEST_MAN");
+        mockMvc.perform(put("/api/admin/guest-roles/" + secondarySponsorId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + admin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name", "Secondary Sponsor", "active", true,
+                                "entourageEligible", true, "parentId", bestManId))))
+                .andExpect(status().isBadRequest());
+
+        // A sub-role cannot itself be given sub-roles (two levels of nesting rejected).
+        mockMvc.perform(post("/api/admin/guest-roles")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + admin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name", "Sub-sub role", "entourageEligible", false,
+                                "parentId", coinBearerId))))
+                .andExpect(status().isBadRequest());
+
+        // A role with sub-roles can't be hard-deleted until they're removed.
+        mockMvc.perform(delete("/api/admin/guest-roles/" + secondarySponsorId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + admin))
+                .andExpect(status().isBadRequest());
+    }
+
+    private JsonNode findBySlug(JsonNode roles, String slug) {
+        for (JsonNode node : roles) {
+            if (node.get("slug").asText().equals(slug)) {
+                return node;
+            }
+        }
+        throw new IllegalStateException("No role with slug " + slug);
     }
 
     @Test

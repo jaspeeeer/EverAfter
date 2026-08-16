@@ -125,15 +125,26 @@ public RSVP page can show more than a bare date. Edited via the **Settings** tab
 (`docs/project-settings.md`) under the existing `canAccess` rule (no new permission check:
 admin/managing planner/owning couple could already `PUT` a project). `V19` also added
 `allow_guest_party_size`/`max_party_size`/`cover_attachment_id`; `V20` added
-`ceremony_photo_attachment_id`/`reception_photo_attachment_id` — three independent single-photo
-slots sharing one `AttachmentOwnerType.PROJECT` (see `docs/project-photos.md`). `V21` added seven
+`ceremony_photo_attachment_id`/`reception_photo_attachment_id`; `V23` added
+`attire_men_photo_attachment_id`/`attire_women_photo_attachment_id` — five independent
+single-photo slots sharing one `AttachmentOwnerType.PROJECT` (see `docs/project-photos.md`). `V21` added seven
 more nullable scalars (`dress_code`, `attire_notes_men`, `attire_notes_women`, `attire_palette` —
 a comma-separated hex list, `rsvp_deadline`, `kids_policy`, `social_hashtag`) plus a genuinely new
 child table, `entourage_members` (`id`, `project_id` FK `ON DELETE CASCADE`, `role`, `name`,
 `sort_order`, no soft delete) — the wedding party is an ordered list, not a scalar, so unlike the
 other `V21` additions it gets its own table/service/controller under
 `/api/projects/{projectId}/entourage`, following the `Guest`/`Task` child-resource shape rather
-than the admin-managed-lookup shape (`guest_roles`/`vendor_categories`). See
+than the admin-managed-lookup shape (`guest_roles`/`vendor_categories`). `V22` added
+`guest_roles.entourage_eligible` (default false, backfilled true for the eight seeded
+wedding-party roles) — an **admin-managed** flag, not a couple-facing setting, controlling which
+roles' guests appear in the Entourage card's "import from guests" picker
+(`POST .../entourage/import-from-guests`, dedup by name, admin toggles it on the existing Guest
+Roles page). `V24` added `guest_roles.parent_id` (nullable self-FK, `ON DELETE SET NULL`) —
+one level of sub-role nesting, mirroring `Vendor.parent_id`'s package-item pattern (`V11`), used
+to organize Secondary Sponsor into eight sub-roles (Candle, Veil, Cord, Ring Bearer, Arrhae
+Bearer, Rosary Bearer, Bible Bearer, Flower Girls) — the last two reparent the existing
+`RING_BEARER`/`FLOWER_GIRL` rows rather than duplicating them. The admin Guest Roles page's
+create/edit forms ask which top-level role (if any) a new role is a sub-role of. See
 `docs/attire-and-entourage.md`. See `docs/rsvp.md` for the full guest-facing feature.
 
 Supabase specifics: connect via the **Session Pooler**

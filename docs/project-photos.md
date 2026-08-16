@@ -1,41 +1,44 @@
 # Project Photos
 
-Three independent, single-photo slots per project — **cover** (a hero banner), **ceremony**, and
-**reception** — shown on the public invitation page (`/rsvp/[token]`). All three reuse the same
-attachment infrastructure rather than three bespoke upload paths.
+Five independent, single-photo slots per project — **cover** (a hero banner), **ceremony**,
+**reception**, and the two attire reference photos (**men's attire**, **women's attire**) —
+shown on the public invitation page (`/rsvp/[token]`). All five reuse the same attachment
+infrastructure rather than five bespoke upload paths.
 
 ## Data model
 
-`projects.cover_attachment_id` (`V19`), `ceremony_photo_attachment_id`, `reception_photo_attachment_id`
-(both `V20`) — each a nullable FK → `attachments(id)` `ON DELETE SET NULL`. Each slot holds at
-most one photo, not a history: uploading a new one hard-deletes the prior one (file + row) once
-the new one is in place, so there's never an orphan and never two "current" photos for the same
-slot.
+`projects.cover_attachment_id` (`V19`), `ceremony_photo_attachment_id`,
+`reception_photo_attachment_id` (both `V20`), `attire_men_photo_attachment_id` and
+`attire_women_photo_attachment_id` (both `V23`) — each a nullable FK → `attachments(id)`
+`ON DELETE SET NULL`. Each slot holds at most one photo, not a history: uploading a new one
+hard-deletes the prior one (file + row) once the new one is in place, so there's never an
+orphan and never two "current" photos for the same slot.
 
-All three slots share **one** `AttachmentOwnerType.PROJECT` — the owner type doesn't distinguish
-them, the FK column does. `ownerId` is always the project's own id for all three
+All five slots share **one** `AttachmentOwnerType.PROJECT` — the owner type doesn't distinguish
+them, the FK column does. `ownerId` is always the project's own id for all five
 (`AttachmentService.requireOwnerInProject`'s `PROJECT` case is a defence-in-depth equality check,
 not a real lookup, since the project is already loaded by the caller). See
 [attachments.md](attachments.md) for why this is the one owner type that works this way.
 
-**Why this needed a fix, not just three copies of the cover code.** Before ceremony/reception
-existed, `requireOwnerInProject`'s generic `PROJECT` case hardcoded the activity-log label to "the
-project cover photo" — harmless when cover was the only PROJECT-owned upload. Adding two more
-slots through the same generic path would have made every ceremony/reception upload log itself as
-a cover-photo update, since `ownerId == projectId` in all three cases and the generic lookup has
-no way to tell them apart. Fixed by giving `AttachmentService.upload(...)` an explicit
-`ownerLabelOverride` parameter — `ProjectService`'s photo setters always pass one ("the ceremony
-photo", etc.); the plain 5-arg `upload()` used by `AttachmentController` (vendors/payments/
-expenses) is unaffected and still falls back to the generic lookup.
+**Why this needed a fix, not just per-slot copies of the cover code.** Before ceremony/reception
+existed, `requireOwnerInProject`'s generic `PROJECT` case hardcoded the activity-log label to
+"the project cover photo" — harmless when cover was the only PROJECT-owned upload. Adding more
+slots through the same generic path would have made every ceremony/reception/attire upload log
+itself as a cover-photo update, since `ownerId == projectId` in all five cases and the generic
+lookup has no way to tell them apart. Fixed by giving `AttachmentService.upload(...)` an
+explicit `ownerLabelOverride` parameter — `ProjectService`'s photo setters always pass one
+("the ceremony photo", etc.); the plain 5-arg `upload()` used by `AttachmentController`
+(vendors/payments/expenses) is unaffected and still falls back to the generic lookup.
 
-**`ProjectService`'s dedup.** A private `PhotoSlot` enum (`COVER`, `CEREMONY`, `RECEPTION`, each
-carrying its own label string) plus shared `getPhotoId`/`setPhotoId` (switch to the right
-`Project` getter/setter) and `setPhoto`/`removePhoto` helpers do the actual upload/replace/404
-logic once; the six public methods (`setCover`/`removeCover`/`setCeremonyPhoto`/
-`removeCeremonyPhoto`/`setReceptionPhoto`/`removeReceptionPhoto`) are each a one-line call into
-the shared helpers. Same pattern on the read side: `AttachmentService.downloadPhoto` (private) is
-wrapped by `downloadProjectCover`/`downloadCeremonyPhoto`/`downloadReceptionPhoto`, each resolving
-its own FK column.
+**`ProjectService`'s dedup.** A private `PhotoSlot` enum (`COVER`, `CEREMONY`, `RECEPTION`,
+`ATTIRE_MEN`, `ATTIRE_WOMEN`, each carrying its own label string) plus shared
+`getPhotoId`/`setPhotoId` (switch to the right `Project` getter/setter) and
+`setPhoto`/`removePhoto` helpers do the actual upload/replace/404 logic once; the ten public
+methods (`setCover`/`removeCover`/`setCeremonyPhoto`/… through `setAttireWomenPhoto`/
+`removeAttireWomenPhoto`) are each a one-line call into the shared helpers. Same pattern on the
+read side: `AttachmentService.downloadPhoto` (private) is wrapped by `downloadProjectCover`/
+`downloadCeremonyPhoto`/`downloadReceptionPhoto`/`downloadAttireMenPhoto`/
+`downloadAttireWomenPhoto`, each resolving its own FK column.
 
 ## API
 
@@ -46,6 +49,8 @@ Per slot, mirroring the original cover endpoints exactly:
 | Cover | `POST /api/projects/{id}/cover` | `DELETE …/cover` | `GET /api/public/rsvp/{token}/cover` |
 | Ceremony | `POST …/ceremony-photo` | `DELETE …/ceremony-photo` | `GET …/rsvp/{token}/ceremony-photo` |
 | Reception | `POST …/reception-photo` | `DELETE …/reception-photo` | `GET …/rsvp/{token}/reception-photo` |
+| Attire — men | `POST …/attire-men-photo` | `DELETE …/attire-men-photo` | `GET …/rsvp/{token}/attire-men-photo` |
+| Attire — women | `POST …/attire-women-photo` | `DELETE …/attire-women-photo` | `GET …/rsvp/{token}/attire-women-photo` |
 
 Authenticated endpoints are multipart (`file` part), `canAccess`-gated (admin, managing planner,
 or owning couple — same as every other project write). The public stream endpoints resolve
@@ -55,15 +60,17 @@ surface never has to know (or expose) the attachment's own id — consistent wit
 rate-limited by the same `RateLimitFilter` as the rest of `/api/public/**`.
 
 `ProjectResponse` carries `coverAttachmentId`/`ceremonyPhotoAttachmentId`/
-`receptionPhotoAttachmentId` (planner-facing, drives the settings UI's Upload/Replace/Remove
-state). `RsvpViewResponse` carries only booleans — `hasCover`/`hasCeremonyPhoto`/
-`hasReceptionPhoto` — never the attachment ids, to avoid widening the public DTO's exposure.
+`receptionPhotoAttachmentId`/`attireMenPhotoAttachmentId`/`attireWomenPhotoAttachmentId`
+(planner-facing, drives the settings UI's Upload/Replace/Remove state). `RsvpViewResponse`
+carries only booleans — `hasCover`/`hasCeremonyPhoto`/`hasReceptionPhoto`/`hasAttireMenPhoto`/
+`hasAttireWomenPhoto` — never the attachment ids, to avoid widening the public DTO's exposure.
 
 ## Frontend
 
 **Settings tab** (`components/projects/project-photo-upload.tsx`) — one generalized
 `ProjectPhotoUpload` component, given `projectId`/`slot`/`label`/`hasPhoto` props and rendered
-three times (cover, ceremony, reception) in the Settings page's **Photos** card. Each instance is
+five times (cover, ceremony, reception, attire-men, attire-women) in the Settings page's
+**Photos** card. Each instance is
 its own `<form>`, separate from the main settings form (`project-settings-form.tsx`) because it
 submits multipart, not the settings form's JSON PUT, and a `<form>` cannot nest inside another
 `<form>` in HTML. Upload immediately submits on file selection (matching
@@ -71,12 +78,14 @@ submits multipart, not the settings form's JSON PUT, and a `<form>` cannot nest 
 button carries an explicit `aria-label` (e.g. "Upload ceremony photo") since the three instances
 would otherwise all expose the identical accessible name "Upload photo".
 
-**Public invitation page** (`app/rsvp/[token]/page.tsx`, `components/rsvp/venue-section.tsx`) —
-the cover renders as a full-width hero banner at the top of the page; the ceremony/reception
-photos render inside their respective `VenueSection`, alongside that venue's name/address/time/map
-(see [rsvp.md](rsvp.md) for the full section layout). All three point at a **frontend proxy
-route** (`app/api/public/rsvp/[token]/{cover,ceremony-photo,reception-photo}/route.ts`), which
-streams the bytes from the Spring backend server-side. This is not optional plumbing: per this
+**Public invitation page** (`app/rsvp/[token]/page.tsx`, `components/rsvp/venue-section.tsx`,
+`components/rsvp/attire-section.tsx`) — the cover renders as a full-width hero banner at the
+top of the page; the ceremony/reception photos render inside their respective `VenueSection`,
+alongside that venue's name/address/time/map; the attire men/women photos render inside
+`AttireSection` next to each set of notes (see [rsvp.md](rsvp.md) for the full section
+layout). All five point at a **frontend proxy route**
+(`app/api/public/rsvp/[token]/{cover,ceremony-photo,reception-photo,attire-men-photo,attire-women-photo}/route.ts`),
+which streams the bytes from the Spring backend server-side. This is not optional plumbing: per this
 codebase's architecture "the browser never calls :8080 directly" (no CORS is configured for it),
 so a raw `<img src>` pointed straight at the backend would simply fail to load in production. The
 existing authenticated attachment proxy

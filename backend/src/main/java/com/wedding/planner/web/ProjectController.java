@@ -121,4 +121,32 @@ public class ProjectController {
     public ProjectResponse removeReceptionPhoto(@PathVariable UUID projectId) {
         return projectService.removeReceptionPhoto(projectId);
     }
+
+    @PostMapping("/{projectId}/attire-men-photo")
+    @PreAuthorize("@projectSecurity.canAccess(#projectId, authentication)")
+    public ProjectResponse setAttireMenPhoto(@PathVariable UUID projectId,
+                                             @RequestPart("file") MultipartFile file,
+                                             @AuthenticationPrincipal AppUserPrincipal principal) {
+        return projectService.setAttireMenPhoto(projectId, file, principal.getId());
+    }
+
+    @DeleteMapping("/{projectId}/attire-men-photo")
+    @PreAuthorize("@projectSecurity.canAccess(#projectId, authentication)")
+    public ProjectResponse removeAttireMenPhoto(@PathVariable UUID projectId) {
+        return projectService.removeAttireMenPhoto(projectId);
+    }
+
+    @PostMapping("/{projectId}/attire-women-photo")
+    @PreAuthorize("@projectSecurity.canAccess(#projectId, authentication)")
+    public ProjectResponse setAttireWomenPhoto(@PathVariable UUID projectId,
+                                               @RequestPart("file") MultipartFile file,
+                                               @AuthenticationPrincipal AppUserPrincipal principal) {
+        return projectService.setAttireWomenPhoto(projectId, file, principal.getId());
+    }
+
+    @DeleteMapping("/{projectId}/attire-women-photo")
+    @PreAuthorize("@projectSecurity.canAccess(#projectId, authentication)")
+    public ProjectResponse removeAttireWomenPhoto(@PathVariable UUID projectId) {
+        return projectService.removeAttireWomenPhoto(projectId);
+    }
 }

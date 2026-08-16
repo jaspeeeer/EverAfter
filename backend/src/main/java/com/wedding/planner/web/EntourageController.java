@@ -2,6 +2,8 @@ package com.wedding.planner.web;
 
 import com.wedding.planner.dto.EntourageDtos.EntourageMemberRequest;
 import com.wedding.planner.dto.EntourageDtos.EntourageMemberResponse;
+import com.wedding.planner.dto.EntourageDtos.ImportFromGuestsRequest;
+import com.wedding.planner.dto.EntourageDtos.ImportFromGuestsResult;
 import com.wedding.planner.service.EntourageService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -70,5 +72,12 @@ public class EntourageController {
     @PreAuthorize("@projectSecurity.canAccess(#projectId, authentication)")
     public EntourageMemberResponse moveDown(@PathVariable UUID projectId, @PathVariable UUID memberId) {
         return entourageService.moveDown(projectId, memberId);
+    }
+
+    @PostMapping("/import-from-guests")
+    @PreAuthorize("@projectSecurity.canAccess(#projectId, authentication)")
+    public ImportFromGuestsResult importFromGuests(@PathVariable UUID projectId,
+                                                   @Valid @RequestBody ImportFromGuestsRequest request) {
+        return entourageService.importFromGuests(projectId, request.guestIds());
     }
 }

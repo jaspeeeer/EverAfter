@@ -672,6 +672,83 @@ class InvitationRsvpAdminIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    void importFromGuestsAddsEligibleGuestsSkipsOthersAndDedupsOnRerun() throws Exception {
+        String planner = register("import-planner@wedding.test", "ROLE_PLANNER");
+        String projectId = createProject(planner, "Import Wedding");
+
+        String bestManRoleId = guestRoleId(planner, "BEST_MAN");
+        String parentsRoleId = guestRoleId(planner, "PARENTS");
+
+        String eligibleGuestId = createGuestWithRole(planner, projectId, "Ana Cruz", bestManRoleId);
+        String ineligibleGuestId = createGuestWithRole(planner, projectId, "Ben Reyes", parentsRoleId);
+        String noRoleGuestId = createGuestWithRole(planner, projectId, "No Role Guy", null);
+
+        mockMvc.perform(post("/api/projects/" + projectId + "/entourage/import-from-guests")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "guestIds",
+                                List.of(eligibleGuestId, ineligibleGuestId, noRoleGuestId)))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.added").value(1))
+                .andExpect(jsonPath("$.skippedNotEligible").value(2))
+                .andExpect(jsonPath("$.skippedAlreadyPresent").value(0));
+
+        mockMvc.perform(get("/api/projects/" + projectId + "/entourage")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].name").value("Ana Cruz"))
+                .andExpect(jsonPath("$[0].role").value("Best Man"))
+                .andExpect(jsonPath("$[0].sortOrder").value(0));
+
+        // Re-running the import against the same guest is a no-op, not a duplicate row.
+        mockMvc.perform(post("/api/projects/" + projectId + "/entourage/import-from-guests")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                Map.of("guestIds", List.of(eligibleGuestId)))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.added").value(0))
+                .andExpect(jsonPath("$.skippedAlreadyPresent").value(1));
+
+        mockMvc.perform(get("/api/projects/" + projectId + "/entourage")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner))
+                .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    private String guestRoleId(String token, String slug) throws Exception {
+        MvcResult result = mockMvc.perform(get("/api/guest-roles")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andReturn();
+        for (JsonNode node : json(result)) {
+            if (node.get("slug").asText().equals(slug)) {
+                return node.get("id").asText();
+            }
+        }
+        throw new IllegalStateException("No seeded role " + slug);
+    }
+
+    private String createGuestWithRole(String token, String projectId, String name, String roleId)
+            throws Exception {
+        var body = new java.util.HashMap<String, Object>();
+        body.put("firstName", name);
+        body.put("rsvpStatus", "PENDING");
+        body.put("partySize", 1);
+        if (roleId != null) {
+            body.put("roleId", roleId);
+        }
+        MvcResult result = mockMvc.perform(post("/api/projects/" + projectId + "/guests")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return json(result).get("id").asText();
+    }
+
     private String addEntourageMember(String token, String projectId, String role, String name) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/projects/" + projectId + "/entourage")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)

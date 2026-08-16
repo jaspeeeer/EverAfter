@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { apiFetch, ApiError } from "@/lib/api";
 import { getToken } from "@/lib/session";
-import type { EntourageMemberResponse } from "@/lib/types";
+import type { EntourageMemberResponse, ImportFromGuestsResult } from "@/lib/types";
 
 export interface ActionState {
   error?: string;
@@ -51,6 +51,41 @@ export async function removeEntourageMemberAction(
 
   revalidatePath(`/projects/${projectId}/settings`);
   return {};
+}
+
+export interface ImportActionState {
+  error?: string;
+  ok?: string;
+}
+
+export async function importEntourageFromGuestsAction(
+  projectId: string,
+  _prev: ImportActionState,
+  formData: FormData,
+): Promise<ImportActionState> {
+  const guestIds = formData.getAll("guestId").map(String).filter(Boolean);
+  if (guestIds.length === 0) return { error: "Select at least one guest to import." };
+
+  let result: ImportFromGuestsResult;
+  try {
+    const token = await getToken();
+    result = await apiFetch<ImportFromGuestsResult>(
+      `/api/projects/${projectId}/entourage/import-from-guests`,
+      { method: "POST", token, body: { guestIds } },
+    );
+  } catch (error) {
+    return { error: error instanceof ApiError ? error.message : "Something went wrong." };
+  }
+
+  revalidatePath(`/projects/${projectId}/settings`);
+  const parts = [`Added ${result.added}.`];
+  if (result.skippedAlreadyPresent > 0) {
+    parts.push(`Skipped ${result.skippedAlreadyPresent} already in the entourage.`);
+  }
+  if (result.skippedNotEligible > 0) {
+    parts.push(`Skipped ${result.skippedNotEligible} not eligible.`);
+  }
+  return { ok: parts.join(" ") };
 }
 
 export async function moveEntourageMemberAction(

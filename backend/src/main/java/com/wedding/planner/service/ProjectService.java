@@ -123,11 +123,13 @@ public class ProjectService {
         return ProjectResponse.from(project);
     }
 
-    /** The three independent, single-photo slots a project can carry. See {@link AttachmentOwnerType#PROJECT}. */
+    /** The independent, single-photo slots a project can carry. See {@link AttachmentOwnerType#PROJECT}. */
     private enum PhotoSlot {
         COVER("cover photo"),
         CEREMONY("ceremony photo"),
-        RECEPTION("reception photo");
+        RECEPTION("reception photo"),
+        ATTIRE_MEN("attire (men) photo"),
+        ATTIRE_WOMEN("attire (women) photo");
 
         final String label;
 
@@ -141,6 +143,8 @@ public class ProjectService {
             case COVER -> project.getCoverAttachmentId();
             case CEREMONY -> project.getCeremonyPhotoAttachmentId();
             case RECEPTION -> project.getReceptionPhotoAttachmentId();
+            case ATTIRE_MEN -> project.getAttireMenPhotoAttachmentId();
+            case ATTIRE_WOMEN -> project.getAttireWomenPhotoAttachmentId();
         };
     }
 
@@ -149,6 +153,8 @@ public class ProjectService {
             case COVER -> project.setCoverAttachmentId(attachmentId);
             case CEREMONY -> project.setCeremonyPhotoAttachmentId(attachmentId);
             case RECEPTION -> project.setReceptionPhotoAttachmentId(attachmentId);
+            case ATTIRE_MEN -> project.setAttireMenPhotoAttachmentId(attachmentId);
+            case ATTIRE_WOMEN -> project.setAttireWomenPhotoAttachmentId(attachmentId);
         }
     }
 
@@ -220,6 +226,26 @@ public class ProjectService {
     @Transactional
     public ProjectResponse removeReceptionPhoto(UUID projectId) {
         return removePhoto(projectId, PhotoSlot.RECEPTION);
+    }
+
+    @Transactional
+    public ProjectResponse setAttireMenPhoto(UUID projectId, MultipartFile file, UUID uploaderId) {
+        return setPhoto(projectId, PhotoSlot.ATTIRE_MEN, file, uploaderId);
+    }
+
+    @Transactional
+    public ProjectResponse removeAttireMenPhoto(UUID projectId) {
+        return removePhoto(projectId, PhotoSlot.ATTIRE_MEN);
+    }
+
+    @Transactional
+    public ProjectResponse setAttireWomenPhoto(UUID projectId, MultipartFile file, UUID uploaderId) {
+        return setPhoto(projectId, PhotoSlot.ATTIRE_WOMEN, file, uploaderId);
+    }
+
+    @Transactional
+    public ProjectResponse removeAttireWomenPhoto(UUID projectId) {
+        return removePhoto(projectId, PhotoSlot.ATTIRE_WOMEN);
     }
 
     @Transactional

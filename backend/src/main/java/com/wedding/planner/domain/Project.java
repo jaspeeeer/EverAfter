@@ -89,6 +89,12 @@ public class Project {
     @Column(name = "reception_photo_attachment_id")
     private UUID receptionPhotoAttachmentId;
 
+    @Column(name = "attire_men_photo_attachment_id")
+    private UUID attireMenPhotoAttachmentId;
+
+    @Column(name = "attire_women_photo_attachment_id")
+    private UUID attireWomenPhotoAttachmentId;
+
     @Column(name = "dress_code", length = 200)
     private String dressCode;
 
@@ -329,6 +335,22 @@ public class Project {
 
     public void setReceptionPhotoAttachmentId(UUID receptionPhotoAttachmentId) {
         this.receptionPhotoAttachmentId = receptionPhotoAttachmentId;
+    }
+
+    public UUID getAttireMenPhotoAttachmentId() {
+        return attireMenPhotoAttachmentId;
+    }
+
+    public void setAttireMenPhotoAttachmentId(UUID attireMenPhotoAttachmentId) {
+        this.attireMenPhotoAttachmentId = attireMenPhotoAttachmentId;
+    }
+
+    public UUID getAttireWomenPhotoAttachmentId() {
+        return attireWomenPhotoAttachmentId;
+    }
+
+    public void setAttireWomenPhotoAttachmentId(UUID attireWomenPhotoAttachmentId) {
+        this.attireWomenPhotoAttachmentId = attireWomenPhotoAttachmentId;
     }
 
     public String getDressCode() {

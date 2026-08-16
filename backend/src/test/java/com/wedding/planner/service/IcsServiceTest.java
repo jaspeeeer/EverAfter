@@ -23,7 +23,7 @@ class IcsServiceTest {
         return new RsvpViewResponse("Guest", "Test Wedding", weddingDate, RsvpStatus.PENDING, 1,
                 null, ceremonyVenueName, ceremonyVenueAddress, receptionVenueName,
                 receptionVenueAddress, ceremonyTime, receptionTime, false, null, false, false,
-                false, null, null, null, null, null, null, null, List.of());
+                false, null, null, null, null, null, null, null, false, false, List.of());
     }
 
     private RsvpViewResponse rsvp(LocalDate weddingDate, LocalTime ceremonyTime, LocalTime receptionTime) {

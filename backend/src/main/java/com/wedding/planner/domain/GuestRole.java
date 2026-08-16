@@ -2,9 +2,13 @@ package com.wedding.planner.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.ForeignKey;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.util.Objects;
 import java.util.UUID;
@@ -35,6 +39,22 @@ public class GuestRole {
 
     @Column(name = "sort_order", nullable = false)
     private int sortOrder;
+
+    /** Whether this role appears in the Entourage settings card's "import from guests" picker. */
+    @Column(name = "entourage_eligible", nullable = false)
+    private boolean entourageEligible = false;
+
+    /**
+     * Set when this role is a sub-role nested under a top-level one (e.g. "Candle" under
+     * "Secondary Sponsor"); null for a top-level role. One level of nesting only — enforced in
+     * {@code GuestRoleService}, mirroring {@code Vendor.parent}'s package-item pattern.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(
+            name = "parent_id",
+            foreignKey = @ForeignKey(name = "fk_guest_roles_parent")
+    )
+    private GuestRole parent;
 
     protected GuestRole() {
         // Required by JPA.
@@ -76,6 +96,22 @@ public class GuestRole {
 
     public void setSortOrder(int sortOrder) {
         this.sortOrder = sortOrder;
+    }
+
+    public boolean isEntourageEligible() {
+        return entourageEligible;
+    }
+
+    public void setEntourageEligible(boolean entourageEligible) {
+        this.entourageEligible = entourageEligible;
+    }
+
+    public GuestRole getParent() {
+        return parent;
+    }
+
+    public void setParent(GuestRole parent) {
+        this.parent = parent;
     }
 
     @Override

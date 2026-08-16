@@ -17,4 +17,8 @@ public interface GuestRoleRepository extends JpaRepository<GuestRole, UUID> {
     Optional<GuestRole> findBySlug(String slug);
 
     boolean existsByNameIgnoreCase(String name);
+
+    long countByParentId(UUID parentId);
+
+    List<GuestRole> findByParentId(UUID parentId);
 }

@@ -40,6 +40,8 @@ class ProjectVenuePhotosIntegrationTest extends AbstractIntegrationTest {
     private record Slot(String path, String idField, String hasField) {
         static final Slot CEREMONY = new Slot("ceremony-photo", "ceremonyPhotoAttachmentId", "hasCeremonyPhoto");
         static final Slot RECEPTION = new Slot("reception-photo", "receptionPhotoAttachmentId", "hasReceptionPhoto");
+        static final Slot ATTIRE_MEN = new Slot("attire-men-photo", "attireMenPhotoAttachmentId", "hasAttireMenPhoto");
+        static final Slot ATTIRE_WOMEN = new Slot("attire-women-photo", "attireWomenPhotoAttachmentId", "hasAttireWomenPhoto");
     }
 
     private String register(String email, String role) throws Exception {
@@ -195,5 +197,35 @@ class ProjectVenuePhotosIntegrationTest extends AbstractIntegrationTest {
     @Test
     void receptionPhotoUnrelatedPlannerIsForbidden() throws Exception {
         verifyUnrelatedPlannerIsForbidden(Slot.RECEPTION);
+    }
+
+    @Test
+    void attireMenPhotoUploadReplaceAndRemove() throws Exception {
+        verifyUploadReplaceAndRemove(Slot.ATTIRE_MEN);
+    }
+
+    @Test
+    void attireMenPhotoRemovingNonExistentIs404() throws Exception {
+        verifyRemovingNonExistentIs404(Slot.ATTIRE_MEN);
+    }
+
+    @Test
+    void attireMenPhotoUnrelatedPlannerIsForbidden() throws Exception {
+        verifyUnrelatedPlannerIsForbidden(Slot.ATTIRE_MEN);
+    }
+
+    @Test
+    void attireWomenPhotoUploadReplaceAndRemove() throws Exception {
+        verifyUploadReplaceAndRemove(Slot.ATTIRE_WOMEN);
+    }
+
+    @Test
+    void attireWomenPhotoRemovingNonExistentIs404() throws Exception {
+        verifyRemovingNonExistentIs404(Slot.ATTIRE_WOMEN);
+    }
+
+    @Test
+    void attireWomenPhotoUnrelatedPlannerIsForbidden() throws Exception {
+        verifyUnrelatedPlannerIsForbidden(Slot.ATTIRE_WOMEN);
     }
 }

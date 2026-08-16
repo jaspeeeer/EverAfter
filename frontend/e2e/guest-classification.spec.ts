@@ -18,8 +18,10 @@ test("admin adds a guest role; planner classifies a guest and filters by priorit
   await page.getByRole("button", { name: "Add role" }).click();
   await expect(page.getByText("Role added")).toBeVisible();
   // The seeded catalog has enough rows that a "U"-named role can land on page 2 — search for it.
+  // Target the row's own name paragraph — the role also now appears as an option in the "Sub-role
+  // of" dropdown (any top-level role is a valid parent), so a bare text match is ambiguous.
   await page.getByPlaceholder("Search roles…").fill(uniqueRole);
-  await expect(page.getByText(uniqueRole)).toBeVisible();
+  await expect(page.locator("p.font-medium").filter({ hasText: uniqueRole })).toBeVisible();
 
   // --- Planner: add a guest with the full classification ---
   await page.getByRole("button", { name: "Log out" }).click();
@@ -82,4 +84,46 @@ test("admin adds a guest role; planner classifies a guest and filters by priorit
   await roleFilter.selectOption("ALL");
   await expect(page.getByText("Priya Sponsor")).toBeVisible();
   await expect(page.getByText("Plain Guest")).toBeVisible();
+});
+
+test("admin creates a sub-role under Secondary Sponsor; it displays with the parent prefixed", async ({
+  page,
+  request,
+}) => {
+  const plannerEmail = uniqueEmail("gc-subrole-planner");
+  const plannerToken = await apiRegister(request, plannerEmail, "ROLE_PLANNER");
+  const projectId = await apiCreateProject(request, plannerToken, "Sub-role Wedding");
+
+  const uniqueSubRole = `Test Sub-role ${Date.now()}`;
+  const composedLabel = `Secondary Sponsor → ${uniqueSubRole}`;
+
+  // --- Admin: create a sub-role of Secondary Sponsor ---
+  await uiLogin(page, "admin@wedding.test", "admin12345");
+  await page.waitForURL("**/dashboard");
+  await page.goto("/admin/guest-roles");
+  await page.getByLabel("New role").fill(uniqueSubRole);
+  await page.locator("#role-parent").selectOption({ label: "Secondary Sponsor" });
+  await page.getByRole("button", { name: "Add role" }).click();
+  await expect(page.getByText("Role added")).toBeVisible();
+  await page.getByPlaceholder("Search roles…").fill(uniqueSubRole);
+  await expect(page.getByText(uniqueSubRole)).toBeVisible();
+  await expect(page.getByText("Sub-role of Secondary Sponsor")).toBeVisible();
+
+  // --- Planner: assign the sub-role to a guest ---
+  await page.getByRole("button", { name: "Log out" }).click();
+  await expect(page).toHaveURL(/\/login/);
+  await uiLogin(page, plannerEmail);
+  await page.waitForURL("**/dashboard");
+
+  await page.goto(`/projects/${projectId}/guests`);
+  await page.getByRole("button", { name: "Add guest" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("First name").fill("Candle");
+  await dialog.getByLabel("Last name").fill("Bearer");
+  await dialog.locator("#roleId").selectOption({ label: composedLabel });
+  await dialog.getByRole("button", { name: "Add guest" }).click();
+  await expect(page.getByText("Guest added")).toBeVisible();
+
+  await expect(page.getByText("Candle Bearer")).toBeVisible();
+  await expect(page.locator("span").filter({ hasText: composedLabel })).toBeVisible();
 });

@@ -33,7 +33,43 @@ which are ever exposed on the public RSVP surface (`RsvpDtos`/`PublicController`
   `vendor_categories`: name/slug/active/sort_order, auto-slug on create, deactivate-if-in-use on
   delete). Seeded with a starter set (Principal Sponsor, Best Man, Maid of Honor, Officiating
   Pastor, …) admins can rename/add to/deactivate at `/admin/guest-roles`
-  (`GET /api/guest-roles` public-active-list, `/api/admin/guest-roles` admin CRUD).
+  (`GET /api/guest-roles` public-active-list, `/api/admin/guest-roles` admin CRUD). Also carries
+  an admin-managed `entourage_eligible` flag (`V22`) controlling which roles' guests show up in
+  the Entourage settings card's "import from guests" picker — see
+  [attire-and-entourage.md](attire-and-entourage.md).
+
+  **One level of sub-role nesting (`V24`).** `guest_roles.parent_id` is a nullable self-FK
+  (`ON DELETE SET NULL`), mirroring `Vendor.parent_id`'s package-item pattern (`V11`) — a
+  sub-role's parent must itself be top-level, enforced in `GuestRoleService.resolveParent`
+  (reject self-parenting, reject two levels of nesting, reject reparenting a role that already
+  has sub-roles, reject deleting a role that still has sub-roles). `V24` organizes Secondary
+  Sponsor into eight sub-roles matching Filipino Catholic-wedding tradition: Candle, Veil, Cord,
+  Ring Bearer, Arrhae Bearer, Rosary Bearer, Bible Bearer, and Flower Girls. The last two are
+  **reparented, not duplicated** — the existing `RING_BEARER` and `FLOWER_GIRL` rows (seeded in
+  `V12`) keep their UUIDs and just gain a `parent_id`; `FLOWER_GIRL` is renamed to "Flower
+  Girls" while its slug stays stable. The admin Guest Roles page's create/edit forms expose a
+  "Sub-role of" dropdown (top-level roles only) — this is how the app satisfies "ask if it is a
+  sub-role of an existing role" for any future custom role. `GuestResponse.parentRoleName`
+  denormalizes the parent's name onto each guest so the frontend can prefix a sub-role label
+  (e.g. "Secondary Sponsor → Candle") without an extra fetch — in the classification dropdown,
+  the per-guest role badge, and the Guests-tab role filter. The Entourage "import from guests"
+  picker is intentionally **not** rolled up under the parent — each sub-role still gets its own
+  group heading, unchanged from before `V24`.
+
+  **Admin list display.** The Guest Roles admin table always renders a sub-role directly
+  beneath its own parent, regardless of the chosen sort field — `guest-role-manager.tsx`'s
+  `compareGuestRoles` groups rows by their top-level ancestor (looked up by id in a local
+  `rolesById` map, since a sub-role's own fields only carry the parent's *name*, not its other
+  fields like `active`), orders groups and same-group siblings by the selected field, and always
+  keeps the parent as the first row of its own group (that relationship doesn't flip with sort
+  direction — the parent is a group header, not a sortable peer of its children). This bypasses
+  `useTableControls`'s own generic sort for the actual render order (the hook is only used for
+  its query/sortKey/sortDir/page state and `filteredCount`); an earlier attempt encoded the
+  grouping as one composite sortable string, which is fragile — `localeCompare`'s
+  `{numeric: true}` mode collates embedded digits specially, and role names sharing a prefix
+  (e.g. a hypothetical "Best" vs. "Best Man") sort incorrectly without a safe separator — so a
+  real comparator function replaced it. The search box also matches a sub-role's `parentName`,
+  so searching "Secondary Sponsor" surfaces the whole family, not just the parent row.
 
 **Soft delete + undo (`V18`).** `guests.deleted_at` (nullable timestamp) plus
 `@SQLRestriction("deleted_at is null")` on `Guest` means every existing read —

@@ -68,3 +68,54 @@ test("planner uploads separate ceremony and reception photos independently of th
   fs.unlinkSync(ceremonyJpeg);
   fs.unlinkSync(receptionJpeg);
 });
+
+test("planner uploads men's and women's attire photos; both render on the public invitation page", async ({
+  page,
+  request,
+}) => {
+  const plannerEmail = uniqueEmail("attire-photo-planner");
+  const plannerToken = await apiRegister(request, plannerEmail, "ROLE_PLANNER");
+  const projectId = await apiCreateProject(request, plannerToken, "Attire Photo Wedding");
+  const rsvpToken = await apiCreateGuest(request, plannerToken, projectId, "Attire Photo Guest");
+  const menJpeg = writeTinyJpeg("men-attire");
+  const womenJpeg = writeTinyJpeg("women-attire");
+
+  await uiLogin(page, plannerEmail);
+  await page.waitForURL("**/dashboard");
+  await page.goto(`/projects/${projectId}/settings`);
+
+  const menForm = page.locator("form", {
+    has: page.getByRole("button", { name: "Upload men's attire photo" }),
+  });
+  await page.getByRole("button", { name: "Upload men's attire photo" }).click();
+  await menForm.locator('input[name="file"]').setInputFiles(menJpeg);
+  await expect(page.getByText("Men's attire photo updated")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Replace men's attire photo" })).toBeVisible();
+
+  const womenForm = page.locator("form", {
+    has: page.getByRole("button", { name: "Upload women's attire photo" }),
+  });
+  await page.getByRole("button", { name: "Upload women's attire photo" }).click();
+  await womenForm.locator('input[name="file"]').setInputFiles(womenJpeg);
+  await expect(page.getByText("Women's attire photo updated")).toBeVisible();
+
+  // Both photos serve from the public proxy routes.
+  await page.context().clearCookies();
+  const menRes = await page.request.get(`/api/public/rsvp/${rsvpToken}/attire-men-photo`);
+  expect(menRes.ok()).toBeTruthy();
+  expect(menRes.headers()["content-type"]).toBe("image/jpeg");
+  const womenRes = await page.request.get(`/api/public/rsvp/${rsvpToken}/attire-women-photo`);
+  expect(womenRes.ok()).toBeTruthy();
+  expect(womenRes.headers()["content-type"]).toBe("image/jpeg");
+
+  // On the public RSVP page, both images render inside the Attire section.
+  await page.goto(`/rsvp/${rsvpToken}`);
+  const attire = page.locator("section", {
+    has: page.getByRole("heading", { name: "Attire", exact: true }),
+  });
+  await expect(attire.locator(`img[src$="/attire-men-photo"]`)).toBeVisible();
+  await expect(attire.locator(`img[src$="/attire-women-photo"]`)).toBeVisible();
+
+  fs.unlinkSync(menJpeg);
+  fs.unlinkSync(womenJpeg);
+});

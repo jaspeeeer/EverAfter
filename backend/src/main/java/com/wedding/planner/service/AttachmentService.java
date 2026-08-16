@@ -173,6 +173,16 @@ public class AttachmentService {
         return downloadPhoto(projectId, requireProject(projectId).getReceptionPhotoAttachmentId());
     }
 
+    @Transactional(readOnly = true)
+    public Download downloadAttireMenPhoto(UUID projectId) {
+        return downloadPhoto(projectId, requireProject(projectId).getAttireMenPhotoAttachmentId());
+    }
+
+    @Transactional(readOnly = true)
+    public Download downloadAttireWomenPhoto(UUID projectId) {
+        return downloadPhoto(projectId, requireProject(projectId).getAttireWomenPhotoAttachmentId());
+    }
+
     private Download downloadPhoto(UUID projectId, UUID attachmentId) {
         if (attachmentId == null) {
             throw ResourceNotFoundException.of("Project photo", projectId);

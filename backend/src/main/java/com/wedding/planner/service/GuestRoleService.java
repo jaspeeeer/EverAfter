@@ -50,11 +50,14 @@ public class GuestRoleService {
         if (roleRepository.existsByNameIgnoreCase(name)) {
             throw new ConflictException("A role named \"" + name + "\" already exists");
         }
+        GuestRole parent = resolveParent(request.parentId(), null);
         int nextOrder = roleRepository.findAll().stream()
                 .mapToInt(GuestRole::getSortOrder)
                 .max()
                 .orElse(-1) + 1;
         GuestRole role = new GuestRole(name, uniqueSlug(name), nextOrder);
+        role.setEntourageEligible(request.entourageEligible());
+        role.setParent(parent);
         return GuestRoleResponse.from(roleRepository.save(role));
     }
 
@@ -66,8 +69,15 @@ public class GuestRoleService {
                 && roleRepository.existsByNameIgnoreCase(name)) {
             throw new ConflictException("A role named \"" + name + "\" already exists");
         }
+        GuestRole parent = resolveParent(request.parentId(), id);
+        if (parent != null && roleRepository.countByParentId(id) > 0) {
+            throw new BadRequestException(
+                    "A parent role cannot itself become a sub-role — remove its sub-roles first");
+        }
         role.setName(name);
         role.setActive(request.active());
+        role.setEntourageEligible(request.entourageEligible());
+        role.setParent(parent);
         return GuestRoleResponse.from(role);
     }
 
@@ -75,11 +85,33 @@ public class GuestRoleService {
     @Transactional
     public void delete(UUID id) {
         GuestRole role = requireRole(id);
+        if (roleRepository.countByParentId(id) > 0) {
+            throw new BadRequestException("This role has sub-roles; remove them first");
+        }
         if (guestRepository.countByRoleId(id) > 0) {
             role.setActive(false);
         } else {
             roleRepository.delete(role);
         }
+    }
+
+    /**
+     * Resolves an optional parent role id, enforcing: it exists, it isn't the role itself, and
+     * it is itself top-level (one level of nesting only — a sub-role can't contain sub-roles).
+     */
+    private GuestRole resolveParent(UUID parentId, UUID selfId) {
+        if (parentId == null) {
+            return null;
+        }
+        if (parentId.equals(selfId)) {
+            throw new BadRequestException("A role cannot be its own parent");
+        }
+        GuestRole parent = roleRepository.findById(parentId)
+                .orElseThrow(() -> new BadRequestException("Unknown parent role: " + parentId));
+        if (parent.getParent() != null) {
+            throw new BadRequestException("A sub-role cannot itself contain sub-roles");
+        }
+        return parent;
     }
 
     /**

@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
-import type { EntourageMemberResponse, ProjectResponse } from "@/lib/types";
+import type { EntourageMemberResponse, GuestResponse, ProjectResponse } from "@/lib/types";
 import { EntourageManager } from "./entourage-manager";
 import { ProjectPhotoUpload } from "./project-photo-upload";
 
@@ -92,9 +92,11 @@ function AttirePaletteEditor({ initial }: { initial: string | null }) {
 export function ProjectSettingsForm({
   project,
   entourage,
+  guests,
 }: {
   project: ProjectResponse;
   entourage: EntourageMemberResponse[];
+  guests: GuestResponse[];
 }) {
   const [state, action, pending] = useActionState(
     updateProjectAction.bind(null, project.id),
@@ -423,6 +425,30 @@ export function ProjectSettingsForm({
             hasPhoto={project.receptionPhotoAttachmentId !== null}
           />
         </div>
+        <div className="space-y-1.5">
+          <span className="block text-sm font-medium">Men&rsquo;s attire photo</span>
+          <p className="text-xs text-muted-foreground">
+            Shown in the Attire section next to the men&rsquo;s notes.
+          </p>
+          <ProjectPhotoUpload
+            projectId={project.id}
+            slot="attire-men-photo"
+            label="men's attire photo"
+            hasPhoto={project.attireMenPhotoAttachmentId !== null}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <span className="block text-sm font-medium">Women&rsquo;s attire photo</span>
+          <p className="text-xs text-muted-foreground">
+            Shown in the Attire section next to the women&rsquo;s notes.
+          </p>
+          <ProjectPhotoUpload
+            projectId={project.id}
+            slot="attire-women-photo"
+            label="women's attire photo"
+            hasPhoto={project.attireWomenPhotoAttachmentId !== null}
+          />
+        </div>
       </CardContent>
     </Card>
 
@@ -434,7 +460,7 @@ export function ProjectSettingsForm({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <EntourageManager projectId={project.id} entourage={entourage} />
+        <EntourageManager projectId={project.id} entourage={entourage} guests={guests} />
       </CardContent>
     </Card>
     </div>

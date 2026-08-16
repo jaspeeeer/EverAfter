@@ -1,5 +1,12 @@
 import { test, expect } from "@playwright/test";
-import { apiCreateProject, apiRegister, uiLogin, uniqueEmail } from "./helpers";
+import {
+  apiCreateGuestWithRole,
+  apiCreateProject,
+  apiGuestRoleId,
+  apiRegister,
+  uiLogin,
+  uniqueEmail,
+} from "./helpers";
 
 test("planner adds, reorders, and removes entourage members in settings", async ({ page }) => {
   const plannerEmail = uniqueEmail("entourage-planner");
@@ -34,4 +41,41 @@ test("planner adds, reorders, and removes entourage members in settings", async 
   await expect(page.getByText("Removed \"Juan Dela Cruz\" from the entourage")).toBeVisible();
   await expect(items).toHaveCount(1);
   await expect(page.getByText("Juan Dela Cruz")).toHaveCount(0);
+});
+
+test("planner imports entourage members from the guest list and re-import is a no-op", async ({
+  page,
+}) => {
+  const plannerEmail = uniqueEmail("entourage-import-planner");
+  const plannerToken = await apiRegister(page.request, plannerEmail, "ROLE_PLANNER");
+  const projectId = await apiCreateProject(page.request, plannerToken, "Entourage Import Wedding");
+
+  const bestManRoleId = await apiGuestRoleId(page.request, plannerToken, "BEST_MAN");
+  await apiCreateGuestWithRole(
+    page.request,
+    plannerToken,
+    projectId,
+    "Import Candidate",
+    bestManRoleId,
+  );
+
+  await uiLogin(page, plannerEmail);
+  await page.waitForURL("**/dashboard");
+  await page.goto(`/projects/${projectId}/settings`);
+
+  await expect(page.getByText("Best Man (1)")).toBeVisible();
+  await page.getByLabel("Import Candidate", { exact: true }).check();
+  await page.getByRole("button", { name: "Import selected" }).click();
+  await expect(page.getByText("Added 1.")).toBeVisible();
+
+  const items = page.locator("li", { hasText: "—" });
+  await expect(items).toHaveCount(1);
+  await expect(items.nth(0)).toContainText("Import Candidate");
+  await expect(items.nth(0)).toContainText("Best Man");
+
+  // Re-checking the same guest and importing again is a no-op, not a duplicate row.
+  await page.getByLabel("Import Candidate", { exact: true }).check();
+  await page.getByRole("button", { name: "Import selected" }).click();
+  await expect(page.getByText("Skipped 1 already in the entourage.")).toBeVisible();
+  await expect(items).toHaveCount(1);
 });

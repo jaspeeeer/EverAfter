@@ -119,7 +119,12 @@ export async function updateProjectAction(
 }
 
 /** The three independent, single-photo slots a project can carry. See docs/project-photos.md. */
-export type ProjectPhotoSlot = "cover" | "ceremony-photo" | "reception-photo";
+export type ProjectPhotoSlot =
+  | "cover"
+  | "ceremony-photo"
+  | "reception-photo"
+  | "attire-men-photo"
+  | "attire-women-photo";
 
 /**
  * Uploads (or replaces) one of the project's photo slots. `formData` must contain a "file" entry

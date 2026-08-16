@@ -4,14 +4,20 @@ import com.wedding.planner.audit.ActivityLogService;
 import com.wedding.planner.domain.ActivityAction;
 import com.wedding.planner.domain.ActivityEntityType;
 import com.wedding.planner.domain.EntourageMember;
+import com.wedding.planner.domain.Guest;
 import com.wedding.planner.domain.Project;
 import com.wedding.planner.dto.EntourageDtos.EntourageMemberRequest;
 import com.wedding.planner.dto.EntourageDtos.EntourageMemberResponse;
+import com.wedding.planner.dto.EntourageDtos.ImportFromGuestsResult;
 import com.wedding.planner.dto.EntourageDtos.PublicEntourageMember;
 import com.wedding.planner.exception.ResourceNotFoundException;
 import com.wedding.planner.repository.EntourageMemberRepository;
+import com.wedding.planner.repository.GuestRepository;
 import com.wedding.planner.repository.ProjectRepository;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,13 +32,16 @@ public class EntourageService {
 
     private final EntourageMemberRepository entourageMemberRepository;
     private final ProjectRepository projectRepository;
+    private final GuestRepository guestRepository;
     private final ActivityLogService activityLog;
 
     public EntourageService(EntourageMemberRepository entourageMemberRepository,
                             ProjectRepository projectRepository,
+                            GuestRepository guestRepository,
                             ActivityLogService activityLog) {
         this.entourageMemberRepository = entourageMemberRepository;
         this.projectRepository = projectRepository;
+        this.guestRepository = guestRepository;
         this.activityLog = activityLog;
     }
 
@@ -82,6 +91,66 @@ public class EntourageService {
         entourageMemberRepository.delete(member);
         activityLog.record(projectId, ActivityEntityType.ENTOURAGE_MEMBER, memberId,
                 ActivityAction.DELETE, "Removed \"" + name + "\" from the entourage");
+    }
+
+    /**
+     * Adds one entourage row per guest id, copying that guest's current role name and full name.
+     * A guest with no role, or whose role isn't marked {@code entourageEligible}, is skipped
+     * ({@code skippedNotEligible}) — the frontend picker already filters these out, so this is a
+     * defensive backstop against a crafted request, not the primary UX. A guest whose name
+     * (trimmed, case-insensitive) already matches an existing entourage member is skipped too
+     * ({@code skippedAlreadyPresent}), so re-running an import is idempotent. A guest id from
+     * another project 404s the whole request — same defence-in-depth as every other child
+     * resource in this codebase.
+     */
+    @Transactional
+    public ImportFromGuestsResult importFromGuests(UUID projectId, List<UUID> guestIds) {
+        Project project = requireProject(projectId);
+        List<EntourageMember> existing = orderedMembers(projectId);
+        Set<String> existingNames = new HashSet<>();
+        for (EntourageMember member : existing) {
+            existingNames.add(normalizeName(member.getName()));
+        }
+        int nextOrder = existing.stream()
+                .mapToInt(EntourageMember::getSortOrder)
+                .max()
+                .orElse(-1) + 1;
+
+        int added = 0;
+        int skippedAlreadyPresent = 0;
+        int skippedNotEligible = 0;
+        for (UUID guestId : guestIds) {
+            Guest guest = guestRepository.findById(guestId)
+                    .orElseThrow(() -> ResourceNotFoundException.of("Guest", guestId));
+            if (!guest.getProject().getId().equals(projectId)) {
+                throw ResourceNotFoundException.of("Guest", guestId);
+            }
+            if (guest.getRole() == null || !guest.getRole().isEntourageEligible()) {
+                skippedNotEligible++;
+                continue;
+            }
+            String normalizedName = normalizeName(guest.getFullName());
+            if (existingNames.contains(normalizedName)) {
+                skippedAlreadyPresent++;
+                continue;
+            }
+            EntourageMember member = new EntourageMember(
+                    guest.getRole().getName(), guest.getFullName(), nextOrder++);
+            project.addEntourageMember(member);
+            entourageMemberRepository.save(member);
+            existingNames.add(normalizedName);
+            added++;
+        }
+
+        if (added > 0) {
+            activityLog.record(projectId, ActivityEntityType.ENTOURAGE_MEMBER, projectId,
+                    ActivityAction.CREATE, "Imported " + added + " member(s) from the guest list");
+        }
+        return new ImportFromGuestsResult(added, skippedAlreadyPresent, skippedNotEligible);
+    }
+
+    private String normalizeName(String name) {
+        return name.trim().toLowerCase(Locale.ROOT);
     }
 
     @Transactional

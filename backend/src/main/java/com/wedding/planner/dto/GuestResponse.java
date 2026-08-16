@@ -25,6 +25,8 @@ public record GuestResponse(
         GuestRelationship relationship,
         UUID roleId,
         String roleName,
+        boolean roleEntourageEligible,
+        String parentRoleName,
         UUID rsvpToken,
         UUID projectId) {
 
@@ -46,6 +48,9 @@ public record GuestResponse(
                 guest.getRelationship(),
                 guest.getRole() != null ? guest.getRole().getId() : null,
                 guest.getRole() != null ? guest.getRole().getName() : null,
+                guest.getRole() != null && guest.getRole().isEntourageEligible(),
+                guest.getRole() != null && guest.getRole().getParent() != null
+                        ? guest.getRole().getParent().getName() : null,
                 guest.getRsvpToken(),
                 guest.getProject().getId());
     }

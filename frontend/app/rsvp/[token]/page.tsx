@@ -93,7 +93,12 @@ export default async function RsvpPage({
     rsvp.receptionVenueName || rsvp.receptionVenueAddress || rsvp.receptionTime || rsvp.hasReceptionPhoto,
   );
   const hasAttire = Boolean(
-    rsvp.dressCode || rsvp.attireNotesMen || rsvp.attireNotesWomen || rsvp.attirePalette,
+    rsvp.dressCode ||
+      rsvp.attireNotesMen ||
+      rsvp.attireNotesWomen ||
+      rsvp.attirePalette ||
+      rsvp.hasAttireMenPhoto ||
+      rsvp.hasAttireWomenPhoto,
   );
   const hasEntourage = rsvp.entourage.length > 0;
 
@@ -137,6 +142,10 @@ export default async function RsvpPage({
           notesMen={rsvp.attireNotesMen}
           notesWomen={rsvp.attireNotesWomen}
           palette={rsvp.attirePalette}
+          menPhotoUrl={rsvp.hasAttireMenPhoto ? `/api/public/rsvp/${token}/attire-men-photo` : null}
+          womenPhotoUrl={
+            rsvp.hasAttireWomenPhoto ? `/api/public/rsvp/${token}/attire-women-photo` : null
+          }
         />
       ),
     });

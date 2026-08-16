@@ -48,6 +48,8 @@ public final class RsvpDtos {
             LocalDate rsvpDeadline,
             String kidsPolicy,
             String socialHashtag,
+            boolean hasAttireMenPhoto,
+            boolean hasAttireWomenPhoto,
             List<PublicEntourageMember> entourage) {
 
         /** @param entourage ordered, no ids — see {@link PublicEntourageMember}. */
@@ -78,6 +80,8 @@ public final class RsvpDtos {
                     project.getRsvpDeadline(),
                     project.getKidsPolicy(),
                     project.getSocialHashtag(),
+                    project.getAttireMenPhotoAttachmentId() != null,
+                    project.getAttireWomenPhotoAttachmentId() != null,
                     entourage);
         }
     }

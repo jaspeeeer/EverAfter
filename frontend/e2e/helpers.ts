@@ -131,6 +131,40 @@ export async function apiCreateGuest(
   return (await res.json()).rsvpToken as string;
 }
 
+/** Looks up a seeded guest role's id by slug (e.g. "BEST_MAN"). */
+export async function apiGuestRoleId(
+  request: APIRequestContext,
+  token: string,
+  slug: string,
+): Promise<string> {
+  const res = await request.get(`${API}/api/guest-roles`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  expect(res.ok(), "list guest roles").toBeTruthy();
+  const roles = (await res.json()) as Array<{ id: string; slug: string }>;
+  const match = roles.find((r) => r.slug === slug);
+  if (!match) throw new Error(`No seeded guest role with slug ${slug}`);
+  return match.id;
+}
+
+/** Creates a guest carrying the given role and returns the guest's own id (not the RSVP token). */
+export async function apiCreateGuestWithRole(
+  request: APIRequestContext,
+  token: string,
+  projectId: string,
+  name: string,
+  roleId: string,
+): Promise<string> {
+  const [firstName, ...rest] = name.split(" ");
+  const lastName = rest.length > 0 ? rest.join(" ") : null;
+  const res = await request.post(`${API}/api/projects/${projectId}/guests`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { firstName, lastName, rsvpStatus: "PENDING", partySize: 1, roleId },
+  });
+  expect(res.ok(), `create guest ${name} with role`).toBeTruthy();
+  return (await res.json()).id as string;
+}
+
 export async function apiGetTasks(
   request: APIRequestContext,
   token: string,
