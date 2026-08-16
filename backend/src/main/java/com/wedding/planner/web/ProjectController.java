@@ -93,4 +93,32 @@ public class ProjectController {
     public ProjectResponse removeCover(@PathVariable UUID projectId) {
         return projectService.removeCover(projectId);
     }
+
+    @PostMapping("/{projectId}/ceremony-photo")
+    @PreAuthorize("@projectSecurity.canAccess(#projectId, authentication)")
+    public ProjectResponse setCeremonyPhoto(@PathVariable UUID projectId,
+                                            @RequestPart("file") MultipartFile file,
+                                            @AuthenticationPrincipal AppUserPrincipal principal) {
+        return projectService.setCeremonyPhoto(projectId, file, principal.getId());
+    }
+
+    @DeleteMapping("/{projectId}/ceremony-photo")
+    @PreAuthorize("@projectSecurity.canAccess(#projectId, authentication)")
+    public ProjectResponse removeCeremonyPhoto(@PathVariable UUID projectId) {
+        return projectService.removeCeremonyPhoto(projectId);
+    }
+
+    @PostMapping("/{projectId}/reception-photo")
+    @PreAuthorize("@projectSecurity.canAccess(#projectId, authentication)")
+    public ProjectResponse setReceptionPhoto(@PathVariable UUID projectId,
+                                             @RequestPart("file") MultipartFile file,
+                                             @AuthenticationPrincipal AppUserPrincipal principal) {
+        return projectService.setReceptionPhoto(projectId, file, principal.getId());
+    }
+
+    @DeleteMapping("/{projectId}/reception-photo")
+    @PreAuthorize("@projectSecurity.canAccess(#projectId, authentication)")
+    public ProjectResponse removeReceptionPhoto(@PathVariable UUID projectId) {
+        return projectService.removeReceptionPhoto(projectId);
+    }
 }

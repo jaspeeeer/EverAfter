@@ -3,9 +3,10 @@
 import { useActionState, useEffect, useRef, useTransition } from "react";
 import { ImagePlus, Trash2 } from "lucide-react";
 import {
-  removeProjectCoverAction,
-  setProjectCoverAction,
+  removeProjectPhotoAction,
+  setProjectPhotoAction,
   type ActionState,
+  type ProjectPhotoSlot,
 } from "@/app/actions/projects";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
@@ -16,19 +17,24 @@ const MAX_BYTES = 10 * 1024 * 1024;
 const initialState: ActionState = {};
 
 /**
- * A project has exactly one cover photo (shown as a banner on the public invitation page) —
- * this control uploads/replaces it and can remove it, separate from the main settings form since
- * it submits as multipart rather than the form's own JSON PUT.
+ * A project has exactly one photo per slot (cover, ceremony, reception) — this control
+ * uploads/replaces it and can remove it, separate from the main settings form since it submits
+ * as multipart rather than the form's own JSON PUT. Reused for all three slots; `label` names
+ * the slot in the button/toast copy (e.g. "cover photo", "ceremony photo").
  */
-export function ProjectCoverUpload({
+export function ProjectPhotoUpload({
   projectId,
-  hasCover,
+  slot,
+  label,
+  hasPhoto,
 }: {
   projectId: string;
-  hasCover: boolean;
+  slot: ProjectPhotoSlot;
+  label: string;
+  hasPhoto: boolean;
 }) {
   const [state, formAction, pending] = useActionState(
-    setProjectCoverAction.bind(null, projectId),
+    setProjectPhotoAction.bind(null, slot, projectId),
     initialState,
   );
   const [removing, startRemoving] = useTransition();
@@ -38,7 +44,7 @@ export function ProjectCoverUpload({
 
   useEffect(() => {
     if (state.ok) {
-      toast("Cover photo updated", "success");
+      toast(`${capitalize(label)} updated`, "success");
       formRef.current?.reset();
     } else if (state.error) {
       toast(state.error, "error");
@@ -64,9 +70,9 @@ export function ProjectCoverUpload({
 
   function remove() {
     startRemoving(async () => {
-      const res = await removeProjectCoverAction(projectId);
+      const res = await removeProjectPhotoAction(slot, projectId);
       if (res.error) toast(res.error, "error");
-      else toast("Cover photo removed", "success");
+      else toast(`${capitalize(label)} removed`, "success");
     });
   }
 
@@ -87,17 +93,19 @@ export function ProjectCoverUpload({
           variant="outline"
           disabled={pending}
           onClick={() => fileInputRef.current?.click()}
+          aria-label={hasPhoto ? `Replace ${label}` : `Upload ${label}`}
         >
           <ImagePlus />
-          {pending ? "Uploading…" : hasCover ? "Replace photo" : "Upload photo"}
+          {pending ? "Uploading…" : hasPhoto ? "Replace photo" : "Upload photo"}
         </Button>
-        {hasCover && (
+        {hasPhoto && (
           <Button
             type="button"
             size="sm"
             variant="outline"
             disabled={removing}
             onClick={remove}
+            aria-label={`Remove ${label}`}
           >
             <Trash2 />
             Remove
@@ -106,4 +114,8 @@ export function ProjectCoverUpload({
       </form>
     </div>
   );
+}
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }

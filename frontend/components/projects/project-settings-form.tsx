@@ -12,9 +12,11 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
-import type { ProjectResponse } from "@/lib/types";
-import { ProjectCoverUpload } from "./project-cover-upload";
+import type { EntourageMemberResponse, ProjectResponse } from "@/lib/types";
+import { EntourageManager } from "./entourage-manager";
+import { ProjectPhotoUpload } from "./project-photo-upload";
 
 /**
  * Time inputs take an "HH:mm" string; the backend's LocalTime serializes as "HH:mm:ss" so we
@@ -25,7 +27,75 @@ function timeToInput(value: string | null): string {
   return value.length >= 5 ? value.slice(0, 5) : value;
 }
 
-export function ProjectSettingsForm({ project }: { project: ProjectResponse }) {
+const MAX_PALETTE_COLORS = 8;
+
+/**
+ * A repeatable row of native color swatches, joined into one comma-separated hex string on
+ * submit (`attirePalette`) — the same "no independent lifecycle" reasoning as venue name/address,
+ * so there's no child table, just a single delimited column.
+ */
+function AttirePaletteEditor({ initial }: { initial: string | null }) {
+  const [colors, setColors] = useState<string[]>(
+    initial
+      ? initial
+          .split(",")
+          .map((c) => c.trim())
+          .filter(Boolean)
+      : [],
+  );
+
+  function updateColor(index: number, value: string) {
+    setColors(colors.map((c, i) => (i === index ? value : c)));
+  }
+
+  function removeColor(index: number) {
+    setColors(colors.filter((_, i) => i !== index));
+  }
+
+  return (
+    <div className="space-y-2">
+      <input type="hidden" name="attirePalette" value={colors.join(",")} />
+      <div className="flex flex-wrap items-center gap-3">
+        {colors.map((color, i) => (
+          <div key={i} className="flex items-center gap-1">
+            <input
+              type="color"
+              value={color}
+              onChange={(e) => updateColor(i, e.target.value)}
+              aria-label={`Palette color ${i + 1}`}
+              className="size-9 cursor-pointer rounded border border-input p-0.5"
+            />
+            <button
+              type="button"
+              onClick={() => removeColor(i)}
+              aria-label={`Remove palette color ${i + 1}`}
+              className="text-xs text-muted-foreground hover:text-destructive"
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setColors([...colors, "#cccccc"])}
+          disabled={colors.length >= MAX_PALETTE_COLORS}
+        >
+          Add color
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+export function ProjectSettingsForm({
+  project,
+  entourage,
+}: {
+  project: ProjectResponse;
+  entourage: EntourageMemberResponse[];
+}) {
   const [state, action, pending] = useActionState(
     updateProjectAction.bind(null, project.id),
     {},
@@ -92,30 +162,31 @@ export function ProjectSettingsForm({ project }: { project: ProjectResponse }) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Invitation details</CardTitle>
+          <CardTitle>Ceremony</CardTitle>
           <CardDescription>
-            Shown on the public invitation page each guest opens with their link.
+            Where and when the ceremony (e.g. the church) happens, shown on the public
+            invitation page.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor="venueName">Venue name</Label>
+            <Label htmlFor="ceremonyVenueName">Ceremony venue name</Label>
             <Input
-              id="venueName"
-              name="venueName"
-              defaultValue={project.venueName ?? ""}
+              id="ceremonyVenueName"
+              name="ceremonyVenueName"
+              defaultValue={project.ceremonyVenueName ?? ""}
               maxLength={200}
               placeholder="e.g. Manila Cathedral"
             />
           </div>
           <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor="venueAddress">Venue address</Label>
+            <Label htmlFor="ceremonyVenueAddress">Ceremony venue address</Label>
             <Input
-              id="venueAddress"
-              name="venueAddress"
-              defaultValue={project.venueAddress ?? ""}
+              id="ceremonyVenueAddress"
+              name="ceremonyVenueAddress"
+              defaultValue={project.ceremonyVenueAddress ?? ""}
               maxLength={500}
-              placeholder="Street, city — used for the guest's directions link"
+              placeholder="Street, city — used for directions and the embedded map"
             />
           </div>
           <div className="space-y-1.5">
@@ -125,6 +196,38 @@ export function ProjectSettingsForm({ project }: { project: ProjectResponse }) {
               name="ceremonyTime"
               type="time"
               defaultValue={timeToInput(project.ceremonyTime)}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Reception</CardTitle>
+          <CardDescription>
+            Where and when the reception happens — a separate place and time from the
+            ceremony.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label htmlFor="receptionVenueName">Reception venue name</Label>
+            <Input
+              id="receptionVenueName"
+              name="receptionVenueName"
+              defaultValue={project.receptionVenueName ?? ""}
+              maxLength={200}
+              placeholder="e.g. Grand Ballroom"
+            />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label htmlFor="receptionVenueAddress">Reception venue address</Label>
+            <Input
+              id="receptionVenueAddress"
+              name="receptionVenueAddress"
+              defaultValue={project.receptionVenueAddress ?? ""}
+              maxLength={500}
+              placeholder="Street, city — used for directions and the embedded map"
             />
           </div>
           <div className="space-y-1.5">
@@ -183,6 +286,91 @@ export function ProjectSettingsForm({ project }: { project: ProjectResponse }) {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Attire</CardTitle>
+          <CardDescription>
+            Dress-code guidance shown on the public invitation page.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label htmlFor="dressCode">Dress code</Label>
+            <Input
+              id="dressCode"
+              name="dressCode"
+              defaultValue={project.dressCode ?? ""}
+              maxLength={200}
+              placeholder="e.g. Garden party formal"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="attireNotesMen">Notes for men</Label>
+            <Textarea
+              id="attireNotesMen"
+              name="attireNotesMen"
+              defaultValue={project.attireNotesMen ?? ""}
+              maxLength={500}
+              placeholder="e.g. Barong or long-sleeve, dark trousers"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="attireNotesWomen">Notes for women</Label>
+            <Textarea
+              id="attireNotesWomen"
+              name="attireNotesWomen"
+              defaultValue={project.attireNotesWomen ?? ""}
+              maxLength={500}
+              placeholder="e.g. Cocktail-length or long dress"
+            />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>Suggested color palette</Label>
+            <AttirePaletteEditor initial={project.attirePalette} />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Invitation extras</CardTitle>
+          <CardDescription>
+            A few small etiquette details, shown on the invitation only when set.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="rsvpDeadline">RSVP by</Label>
+            <Input
+              id="rsvpDeadline"
+              name="rsvpDeadline"
+              type="date"
+              defaultValue={project.rsvpDeadline ?? ""}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="socialHashtag">Social hashtag</Label>
+            <Input
+              id="socialHashtag"
+              name="socialHashtag"
+              defaultValue={project.socialHashtag ?? ""}
+              maxLength={100}
+              placeholder="e.g. AlexAndJamie2027 (no #)"
+            />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label htmlFor="kidsPolicy">Kids policy</Label>
+            <Input
+              id="kidsPolicy"
+              name="kidsPolicy"
+              defaultValue={project.kidsPolicy ?? ""}
+              maxLength={300}
+              placeholder="e.g. Adults-only celebration"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="flex justify-end">
         <Button type="submit" disabled={pending}>
           {pending ? "Saving…" : "Save settings"}
@@ -192,14 +380,61 @@ export function ProjectSettingsForm({ project }: { project: ProjectResponse }) {
 
     <Card>
       <CardHeader>
-        <CardTitle>Cover photo</CardTitle>
+        <CardTitle>Photos</CardTitle>
         <CardDescription>
-          A banner image shown at the top of the public invitation page. Uploads immediately —
-          not part of the &ldquo;Save settings&rdquo; button above.
+          Shown on the public invitation page. Each uploads immediately — not part of the
+          &ldquo;Save settings&rdquo; button above.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div className="space-y-1.5">
+          <span className="block text-sm font-medium">Cover photo</span>
+          <p className="text-xs text-muted-foreground">
+            A banner image shown at the top of the page.
+          </p>
+          <ProjectPhotoUpload
+            projectId={project.id}
+            slot="cover"
+            label="cover photo"
+            hasPhoto={project.coverAttachmentId !== null}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <span className="block text-sm font-medium">Ceremony photo</span>
+          <p className="text-xs text-muted-foreground">
+            Shown in the Ceremony section.
+          </p>
+          <ProjectPhotoUpload
+            projectId={project.id}
+            slot="ceremony-photo"
+            label="ceremony photo"
+            hasPhoto={project.ceremonyPhotoAttachmentId !== null}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <span className="block text-sm font-medium">Reception photo</span>
+          <p className="text-xs text-muted-foreground">
+            Shown in the Reception section.
+          </p>
+          <ProjectPhotoUpload
+            projectId={project.id}
+            slot="reception-photo"
+            label="reception photo"
+            hasPhoto={project.receptionPhotoAttachmentId !== null}
+          />
+        </div>
+      </CardContent>
+    </Card>
+
+    <Card>
+      <CardHeader>
+        <CardTitle>Entourage</CardTitle>
+        <CardDescription>
+          The wedding party, shown on the public invitation page in this order.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ProjectCoverUpload projectId={project.id} hasCover={project.coverAttachmentId !== null} />
+        <EntourageManager projectId={project.id} entourage={entourage} />
       </CardContent>
     </Card>
     </div>

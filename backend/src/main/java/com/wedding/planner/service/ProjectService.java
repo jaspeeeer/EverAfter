@@ -53,12 +53,21 @@ public class ProjectService {
         Project project = new Project(request.name(), planner);
         project.setWeddingDate(request.weddingDate());
         project.setTotalBudget(request.totalBudget());
-        project.setVenueName(request.venueName());
-        project.setVenueAddress(request.venueAddress());
+        project.setCeremonyVenueName(request.ceremonyVenueName());
+        project.setCeremonyVenueAddress(request.ceremonyVenueAddress());
+        project.setReceptionVenueName(request.receptionVenueName());
+        project.setReceptionVenueAddress(request.receptionVenueAddress());
         project.setCeremonyTime(request.ceremonyTime());
         project.setReceptionTime(request.receptionTime());
         project.setAllowGuestPartySize(request.allowGuestPartySize());
         project.setMaxPartySize(request.maxPartySize());
+        project.setDressCode(request.dressCode());
+        project.setAttireNotesMen(request.attireNotesMen());
+        project.setAttireNotesWomen(request.attireNotesWomen());
+        project.setAttirePalette(request.attirePalette());
+        project.setRsvpDeadline(request.rsvpDeadline());
+        project.setKidsPolicy(request.kidsPolicy());
+        project.setSocialHashtag(request.socialHashtag());
         attachOwnerIfPresent(project, request.ownerEmail());
 
         Project saved = projectRepository.save(project);
@@ -94,57 +103,123 @@ public class ProjectService {
         project.setName(request.name());
         project.setWeddingDate(request.weddingDate());
         project.setTotalBudget(request.totalBudget());
-        project.setVenueName(request.venueName());
-        project.setVenueAddress(request.venueAddress());
+        project.setCeremonyVenueName(request.ceremonyVenueName());
+        project.setCeremonyVenueAddress(request.ceremonyVenueAddress());
+        project.setReceptionVenueName(request.receptionVenueName());
+        project.setReceptionVenueAddress(request.receptionVenueAddress());
         project.setCeremonyTime(request.ceremonyTime());
         project.setReceptionTime(request.receptionTime());
         project.setAllowGuestPartySize(request.allowGuestPartySize());
         project.setMaxPartySize(request.maxPartySize());
+        project.setDressCode(request.dressCode());
+        project.setAttireNotesMen(request.attireNotesMen());
+        project.setAttireNotesWomen(request.attireNotesWomen());
+        project.setAttirePalette(request.attirePalette());
+        project.setRsvpDeadline(request.rsvpDeadline());
+        project.setKidsPolicy(request.kidsPolicy());
+        project.setSocialHashtag(request.socialHashtag());
         activityLog.record(projectId, ActivityEntityType.PROJECT, projectId,
                 ActivityAction.UPDATE, "Updated project details");
         return ProjectResponse.from(project);
     }
 
+    /** The three independent, single-photo slots a project can carry. See {@link AttachmentOwnerType#PROJECT}. */
+    private enum PhotoSlot {
+        COVER("cover photo"),
+        CEREMONY("ceremony photo"),
+        RECEPTION("reception photo");
+
+        final String label;
+
+        PhotoSlot(String label) {
+            this.label = label;
+        }
+    }
+
+    private UUID getPhotoId(Project project, PhotoSlot slot) {
+        return switch (slot) {
+            case COVER -> project.getCoverAttachmentId();
+            case CEREMONY -> project.getCeremonyPhotoAttachmentId();
+            case RECEPTION -> project.getReceptionPhotoAttachmentId();
+        };
+    }
+
+    private void setPhotoId(Project project, PhotoSlot slot, UUID attachmentId) {
+        switch (slot) {
+            case COVER -> project.setCoverAttachmentId(attachmentId);
+            case CEREMONY -> project.setCeremonyPhotoAttachmentId(attachmentId);
+            case RECEPTION -> project.setReceptionPhotoAttachmentId(attachmentId);
+        }
+    }
+
     /**
-     * Sets (or replaces) the project's cover photo. A project has exactly one cover — any prior
-     * one is hard-deleted (file + row) once the new one is in place, so there's never an orphan
-     * and never two "current" covers.
+     * Sets (or replaces) one of the project's photo slots. A slot holds exactly one photo — any
+     * prior one is hard-deleted (file + row) once the new one is in place, so there's never an
+     * orphan and never two "current" photos for the same slot.
      */
-    @Transactional
-    public ProjectResponse setCover(UUID projectId, MultipartFile file, UUID uploaderId) {
+    private ProjectResponse setPhoto(UUID projectId, PhotoSlot slot, MultipartFile file, UUID uploaderId) {
         Project project = findProject(projectId);
-        UUID previousCoverId = project.getCoverAttachmentId();
+        UUID previousId = getPhotoId(project, slot);
 
-        AttachmentResponse uploaded =
-                attachmentService.upload(projectId, AttachmentOwnerType.PROJECT, projectId, file, uploaderId);
-        project.setCoverAttachmentId(uploaded.id());
+        AttachmentResponse uploaded = attachmentService.upload(
+                projectId, AttachmentOwnerType.PROJECT, projectId, file, uploaderId, "the " + slot.label);
+        setPhotoId(project, slot, uploaded.id());
 
-        if (previousCoverId != null) {
-            attachmentService.delete(projectId, previousCoverId);
+        if (previousId != null) {
+            attachmentService.delete(projectId, previousId);
         }
 
         activityLog.record(projectId, ActivityEntityType.PROJECT, projectId,
-                ActivityAction.UPDATE, "Updated project cover photo");
+                ActivityAction.UPDATE, "Updated the " + slot.label);
         return ProjectResponse.from(project);
     }
 
-    @Transactional
-    public ProjectResponse removeCover(UUID projectId) {
+    private ProjectResponse removePhoto(UUID projectId, PhotoSlot slot) {
         Project project = findProject(projectId);
-        UUID coverId = project.getCoverAttachmentId();
-        if (coverId == null) {
-            throw ResourceNotFoundException.of("Project cover", projectId);
+        UUID currentId = getPhotoId(project, slot);
+        if (currentId == null) {
+            throw ResourceNotFoundException.of("Project " + slot.label, projectId);
         }
         // Clear the FK before deleting the attachment row it points to — Hibernate flushes
         // updates ahead of deletes within the same transaction, so the FK's own
         // ON DELETE SET NULL is never actually exercised here, but nulling explicitly keeps this
         // correct regardless of flush ordering.
-        project.setCoverAttachmentId(null);
-        attachmentService.delete(projectId, coverId);
+        setPhotoId(project, slot, null);
+        attachmentService.delete(projectId, currentId);
 
         activityLog.record(projectId, ActivityEntityType.PROJECT, projectId,
-                ActivityAction.UPDATE, "Removed project cover photo");
+                ActivityAction.UPDATE, "Removed the " + slot.label);
         return ProjectResponse.from(project);
+    }
+
+    @Transactional
+    public ProjectResponse setCover(UUID projectId, MultipartFile file, UUID uploaderId) {
+        return setPhoto(projectId, PhotoSlot.COVER, file, uploaderId);
+    }
+
+    @Transactional
+    public ProjectResponse removeCover(UUID projectId) {
+        return removePhoto(projectId, PhotoSlot.COVER);
+    }
+
+    @Transactional
+    public ProjectResponse setCeremonyPhoto(UUID projectId, MultipartFile file, UUID uploaderId) {
+        return setPhoto(projectId, PhotoSlot.CEREMONY, file, uploaderId);
+    }
+
+    @Transactional
+    public ProjectResponse removeCeremonyPhoto(UUID projectId) {
+        return removePhoto(projectId, PhotoSlot.CEREMONY);
+    }
+
+    @Transactional
+    public ProjectResponse setReceptionPhoto(UUID projectId, MultipartFile file, UUID uploaderId) {
+        return setPhoto(projectId, PhotoSlot.RECEPTION, file, uploaderId);
+    }
+
+    @Transactional
+    public ProjectResponse removeReceptionPhoto(UUID projectId) {
+        return removePhoto(projectId, PhotoSlot.RECEPTION);
     }
 
     @Transactional

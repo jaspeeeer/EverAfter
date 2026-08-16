@@ -55,12 +55,21 @@ export async function updateProjectAction(
   const name = String(formData.get("name") ?? "").trim();
   const weddingDate = String(formData.get("weddingDate") ?? "").trim() || null;
   const budgetRaw = String(formData.get("totalBudget") ?? "").trim();
-  const venueName = String(formData.get("venueName") ?? "").trim() || null;
-  const venueAddress = String(formData.get("venueAddress") ?? "").trim() || null;
+  const ceremonyVenueName = String(formData.get("ceremonyVenueName") ?? "").trim() || null;
+  const ceremonyVenueAddress = String(formData.get("ceremonyVenueAddress") ?? "").trim() || null;
+  const receptionVenueName = String(formData.get("receptionVenueName") ?? "").trim() || null;
+  const receptionVenueAddress = String(formData.get("receptionVenueAddress") ?? "").trim() || null;
   const ceremonyTime = String(formData.get("ceremonyTime") ?? "").trim() || null;
   const receptionTime = String(formData.get("receptionTime") ?? "").trim() || null;
   const allowGuestPartySize = formData.get("allowGuestPartySize") === "on";
   const maxPartySizeRaw = String(formData.get("maxPartySize") ?? "").trim();
+  const dressCode = String(formData.get("dressCode") ?? "").trim() || null;
+  const attireNotesMen = String(formData.get("attireNotesMen") ?? "").trim() || null;
+  const attireNotesWomen = String(formData.get("attireNotesWomen") ?? "").trim() || null;
+  const attirePalette = String(formData.get("attirePalette") ?? "").trim() || null;
+  const rsvpDeadline = String(formData.get("rsvpDeadline") ?? "").trim() || null;
+  const kidsPolicy = String(formData.get("kidsPolicy") ?? "").trim() || null;
+  const socialHashtag = String(formData.get("socialHashtag") ?? "").trim() || null;
 
   if (!name) return { error: "Project name is required." };
 
@@ -83,12 +92,21 @@ export async function updateProjectAction(
         name,
         weddingDate,
         totalBudget,
-        venueName,
-        venueAddress,
+        ceremonyVenueName,
+        ceremonyVenueAddress,
+        receptionVenueName,
+        receptionVenueAddress,
         ceremonyTime,
         receptionTime,
         allowGuestPartySize,
         maxPartySize,
+        dressCode,
+        attireNotesMen,
+        attireNotesWomen,
+        attirePalette,
+        rsvpDeadline,
+        kidsPolicy,
+        socialHashtag,
       },
     });
   } catch (error) {
@@ -100,11 +118,15 @@ export async function updateProjectAction(
   return { ok: true };
 }
 
+/** The three independent, single-photo slots a project can carry. See docs/project-photos.md. */
+export type ProjectPhotoSlot = "cover" | "ceremony-photo" | "reception-photo";
+
 /**
- * Uploads (or replaces) the project's cover photo. `formData` must contain a "file" entry (a
- * browser File) — the caller's <input type="file" name="file"> already provides this.
+ * Uploads (or replaces) one of the project's photo slots. `formData` must contain a "file" entry
+ * (a browser File) — the caller's <input type="file" name="file"> already provides this.
  */
-export async function setProjectCoverAction(
+export async function setProjectPhotoAction(
+  slot: ProjectPhotoSlot,
   projectId: string,
   _prev: ActionState,
   formData: FormData,
@@ -119,7 +141,7 @@ export async function setProjectCoverAction(
 
   try {
     const token = await getToken();
-    await apiFetch<ProjectResponse>(`/api/projects/${projectId}/cover`, {
+    await apiFetch<ProjectResponse>(`/api/projects/${projectId}/${slot}`, {
       method: "POST",
       token,
       body: upload,
@@ -141,12 +163,13 @@ export async function setProjectCoverAction(
   return { ok: true };
 }
 
-export async function removeProjectCoverAction(
+export async function removeProjectPhotoAction(
+  slot: ProjectPhotoSlot,
   projectId: string,
 ): Promise<{ error?: string }> {
   try {
     const token = await getToken();
-    await apiFetch(`/api/projects/${projectId}/cover`, { method: "DELETE", token });
+    await apiFetch(`/api/projects/${projectId}/${slot}`, { method: "DELETE", token });
   } catch (error) {
     return { error: error instanceof ApiError ? error.message : "Something went wrong." };
   }

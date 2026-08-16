@@ -81,8 +81,28 @@ public class AttachmentService {
                                      UUID ownerId,
                                      MultipartFile file,
                                      UUID uploaderId) {
+        return upload(projectId, ownerType, ownerId, file, uploaderId, null);
+    }
+
+    /**
+     * @param ownerLabelOverride when non-null, used as the activity-log owner label instead of
+     *                           {@link #requireOwnerInProject} — needed for {@code PROJECT}-owned
+     *                           attachments, where {@code ownerId} is always the project itself
+     *                           regardless of which named photo slot (cover/ceremony/reception)
+     *                           is actually being set, so the generic lookup can't tell them
+     *                           apart on its own. See {@link ProjectService}'s photo setters.
+     */
+    @Transactional
+    public AttachmentResponse upload(UUID projectId,
+                                     AttachmentOwnerType ownerType,
+                                     UUID ownerId,
+                                     MultipartFile file,
+                                     UUID uploaderId,
+                                     String ownerLabelOverride) {
         Project project = requireProject(projectId);
-        String ownerLabel = requireOwnerInProject(projectId, ownerType, ownerId);
+        String ownerLabel = ownerLabelOverride != null
+                ? ownerLabelOverride
+                : requireOwnerInProject(projectId, ownerType, ownerId);
         validate(file);
 
         User uploader = uploaderId != null ? userRepository.findById(uploaderId).orElse(null) : null;
@@ -133,19 +153,32 @@ public class AttachmentService {
     }
 
     /**
-     * Streams a project's cover photo for the public invitation page — keyed by {@code
-     * projectId} rather than an attachment id, since the public RSVP surface never learns the
-     * attachment's own id (see {@code RsvpDtos.RsvpViewResponse#hasCover}).
+     * Streams one of a project's named photo slots (cover, ceremony, reception) for the public
+     * invitation page — keyed by {@code projectId} rather than an attachment id, since the
+     * public RSVP surface never learns the attachment's own id (see {@code
+     * RsvpDtos.RsvpViewResponse#hasCover}/{@code hasCeremonyPhoto}/{@code hasReceptionPhoto}).
      */
     @Transactional(readOnly = true)
     public Download downloadProjectCover(UUID projectId) {
-        Project project = requireProject(projectId);
-        UUID coverId = project.getCoverAttachmentId();
-        if (coverId == null) {
-            throw ResourceNotFoundException.of("Project cover", projectId);
+        return downloadPhoto(projectId, requireProject(projectId).getCoverAttachmentId());
+    }
+
+    @Transactional(readOnly = true)
+    public Download downloadCeremonyPhoto(UUID projectId) {
+        return downloadPhoto(projectId, requireProject(projectId).getCeremonyPhotoAttachmentId());
+    }
+
+    @Transactional(readOnly = true)
+    public Download downloadReceptionPhoto(UUID projectId) {
+        return downloadPhoto(projectId, requireProject(projectId).getReceptionPhotoAttachmentId());
+    }
+
+    private Download downloadPhoto(UUID projectId, UUID attachmentId) {
+        if (attachmentId == null) {
+            throw ResourceNotFoundException.of("Project photo", projectId);
         }
-        Attachment attachment = attachmentRepository.findById(coverId)
-                .orElseThrow(() -> ResourceNotFoundException.of("Project cover", projectId));
+        Attachment attachment = attachmentRepository.findById(attachmentId)
+                .orElseThrow(() -> ResourceNotFoundException.of("Project photo", projectId));
         try {
             return new Download(attachment, storage.read(attachment.getStorageKey()));
         } catch (IOException e) {
@@ -234,9 +267,12 @@ public class AttachmentService {
             }
             case PROJECT -> {
                 // The "owner" is the project itself — ownerId is always projectId by construction
-                // (see ProjectService.setCover), so this is a defence-in-depth check, not a lookup.
+                // (see ProjectService's photo setters), so this is a defence-in-depth check, not
+                // a lookup. In practice every PROJECT-owned upload passes an explicit
+                // ownerLabelOverride (cover/ceremony/reception all share this owner type, so this
+                // generic path can't tell them apart) — this label is only a fallback.
                 requireSameProject(ownerId, projectId, "Project", ownerId);
-                yield "the project cover photo";
+                yield "a project photo";
             }
         };
     }

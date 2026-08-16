@@ -29,15 +29,18 @@ public class GuestService {
     private final GuestRepository guestRepository;
     private final ProjectRepository projectRepository;
     private final GuestRoleService guestRoleService;
+    private final EntourageService entourageService;
     private final ActivityLogService activityLog;
 
     public GuestService(GuestRepository guestRepository,
                         ProjectRepository projectRepository,
                         GuestRoleService guestRoleService,
+                        EntourageService entourageService,
                         ActivityLogService activityLog) {
         this.guestRepository = guestRepository;
         this.projectRepository = projectRepository;
         this.guestRoleService = guestRoleService;
+        this.entourageService = entourageService;
         this.activityLog = activityLog;
     }
 
@@ -144,7 +147,8 @@ public class GuestService {
 
     @Transactional(readOnly = true)
     public RsvpViewResponse viewByRsvpToken(UUID token) {
-        return RsvpViewResponse.from(requireByRsvpToken(token));
+        Guest guest = requireByRsvpToken(token);
+        return RsvpViewResponse.from(guest, entourageService.listForPublicView(guest.getProject().getId()));
     }
 
     /**
@@ -179,7 +183,7 @@ public class GuestService {
             }
             guest.setPartySize(request.partySize());
         }
-        return RsvpViewResponse.from(guest);
+        return RsvpViewResponse.from(guest, entourageService.listForPublicView(project.getId()));
     }
 
     private Guest requireByRsvpToken(UUID token) {

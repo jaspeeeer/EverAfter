@@ -10,5 +10,6 @@ public enum ActivityEntityType {
     GUEST,
     INVITATION,
     TIMELINE_EVENT,
-    ATTACHMENT
+    ATTACHMENT,
+    ENTOURAGE_MEMBER
 }

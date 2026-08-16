@@ -34,10 +34,13 @@ test("planner uploads a project cover; it shows on the public invitation page an
   await page.waitForURL("**/dashboard");
   await page.goto(`/projects/${projectId}/settings`);
 
-  await page.getByRole("button", { name: "Upload photo" }).click();
-  await page.locator('input[name="file"]').setInputFiles(jpegPath);
+  const coverForm = page.locator("form", {
+    has: page.getByRole("button", { name: "Upload cover photo" }),
+  });
+  await page.getByRole("button", { name: "Upload cover photo" }).click();
+  await coverForm.locator('input[name="file"]').setInputFiles(jpegPath);
   await expect(page.getByText("Cover photo updated")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Replace photo" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Replace cover photo" })).toBeVisible();
 
   await page.context().clearCookies();
   await page.goto(`/rsvp/${rsvpToken}`);
@@ -47,9 +50,9 @@ test("planner uploads a project cover; it shows on the public invitation page an
   await uiLogin(page, plannerEmail);
   await page.waitForURL("**/dashboard");
   await page.goto(`/projects/${projectId}/settings`);
-  await page.getByRole("button", { name: "Remove" }).click();
+  await page.getByRole("button", { name: "Remove cover photo" }).click();
   await expect(page.getByText("Cover photo removed")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Upload photo" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Upload cover photo" })).toBeVisible();
 
   await page.context().clearCookies();
   await page.goto(`/rsvp/${rsvpToken}`);

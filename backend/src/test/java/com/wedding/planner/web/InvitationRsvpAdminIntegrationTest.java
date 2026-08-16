@@ -1,6 +1,7 @@
 package com.wedding.planner.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -446,23 +447,27 @@ class InvitationRsvpAdminIntegrationTest extends AbstractIntegrationTest {
     // --- Invitation page metadata (V19) ---
 
     @Test
-    void projectVenueAndTimesRoundTripThroughPutAndSurfaceOnPublicRsvp() throws Exception {
+    void projectVenuesAndTimesRoundTripThroughPutAndSurfaceOnPublicRsvp() throws Exception {
         String planner = register("venue-planner@wedding.test", "ROLE_PLANNER");
         String projectId = createProject(planner, "Venue Wedding");
 
-        // PUT the invitation-page metadata onto the project.
+        // PUT the invitation-page metadata onto the project — both ceremony and reception.
         mockMvc.perform(put("/api/projects/" + projectId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "name", "Venue Wedding",
-                                "venueName", "Manila Cathedral",
-                                "venueAddress", "Cabildo St, Intramuros, Manila",
+                                "ceremonyVenueName", "Manila Cathedral",
+                                "ceremonyVenueAddress", "Cabildo St, Intramuros, Manila",
+                                "receptionVenueName", "Grand Hall",
+                                "receptionVenueAddress", "Hall Ave, Manila",
                                 "ceremonyTime", "15:00:00",
                                 "receptionTime", "18:30:00"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.venueName").value("Manila Cathedral"))
-                .andExpect(jsonPath("$.venueAddress").value("Cabildo St, Intramuros, Manila"))
+                .andExpect(jsonPath("$.ceremonyVenueName").value("Manila Cathedral"))
+                .andExpect(jsonPath("$.ceremonyVenueAddress").value("Cabildo St, Intramuros, Manila"))
+                .andExpect(jsonPath("$.receptionVenueName").value("Grand Hall"))
+                .andExpect(jsonPath("$.receptionVenueAddress").value("Hall Ave, Manila"))
                 .andExpect(jsonPath("$.ceremonyTime").value("15:00:00"))
                 .andExpect(jsonPath("$.receptionTime").value("18:30:00"));
 
@@ -480,8 +485,10 @@ class InvitationRsvpAdminIntegrationTest extends AbstractIntegrationTest {
 
         mockMvc.perform(get("/api/public/rsvp/" + rsvpToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.venueName").value("Manila Cathedral"))
-                .andExpect(jsonPath("$.venueAddress").value("Cabildo St, Intramuros, Manila"))
+                .andExpect(jsonPath("$.ceremonyVenueName").value("Manila Cathedral"))
+                .andExpect(jsonPath("$.ceremonyVenueAddress").value("Cabildo St, Intramuros, Manila"))
+                .andExpect(jsonPath("$.receptionVenueName").value("Grand Hall"))
+                .andExpect(jsonPath("$.receptionVenueAddress").value("Hall Ave, Manila"))
                 .andExpect(jsonPath("$.ceremonyTime").value("15:00:00"))
                 .andExpect(jsonPath("$.receptionTime").value("18:30:00"));
     }
@@ -503,10 +510,176 @@ class InvitationRsvpAdminIntegrationTest extends AbstractIntegrationTest {
 
         mockMvc.perform(get("/api/public/rsvp/" + rsvpToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.venueName").value(org.hamcrest.Matchers.nullValue()))
-                .andExpect(jsonPath("$.venueAddress").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.ceremonyVenueName").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.ceremonyVenueAddress").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.receptionVenueName").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.receptionVenueAddress").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.ceremonyTime").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.receptionTime").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    // --- Attire, entourage, and invitation extras (V21) ---
+
+    @Test
+    void attireEntourageAndInvitationExtrasRoundTripThroughPutAndSurfaceOnPublicRsvp() throws Exception {
+        String planner = register("attire-planner@wedding.test", "ROLE_PLANNER");
+        String projectId = createProject(planner, "Attire Wedding");
+
+        mockMvc.perform(put("/api/projects/" + projectId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name", "Attire Wedding",
+                                "dressCode", "Garden party formal",
+                                "attireNotesMen", "Barong or long-sleeve, dark trousers",
+                                "attireNotesWomen", "Cocktail-length or long dress",
+                                "attirePalette", "#f4a5a5,#a5c4f4",
+                                "rsvpDeadline", "2027-05-01",
+                                "kidsPolicy", "Adults-only celebration",
+                                "socialHashtag", "AttireWedding2027"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dressCode").value("Garden party formal"))
+                .andExpect(jsonPath("$.attireNotesMen").value("Barong or long-sleeve, dark trousers"))
+                .andExpect(jsonPath("$.attireNotesWomen").value("Cocktail-length or long dress"))
+                .andExpect(jsonPath("$.attirePalette").value("#f4a5a5,#a5c4f4"))
+                .andExpect(jsonPath("$.rsvpDeadline").value("2027-05-01"))
+                .andExpect(jsonPath("$.kidsPolicy").value("Adults-only celebration"))
+                .andExpect(jsonPath("$.socialHashtag").value("AttireWedding2027"));
+
+        // Two entourage members, added in order.
+        mockMvc.perform(post("/api/projects/" + projectId + "/entourage")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                Map.of("role", "Best Man", "name", "Juan Dela Cruz"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.sortOrder").value(0));
+        mockMvc.perform(post("/api/projects/" + projectId + "/entourage")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                Map.of("role", "Maid of Honor", "name", "Maria Santos"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.sortOrder").value(1));
+
+        MvcResult guest = mockMvc.perform(post("/api/projects/" + projectId + "/guests")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "firstName", "Guest", "rsvpStatus", "PENDING"))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String rsvpToken = json(guest).get("rsvpToken").asText();
+
+        mockMvc.perform(get("/api/public/rsvp/" + rsvpToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dressCode").value("Garden party formal"))
+                .andExpect(jsonPath("$.attireNotesMen").value("Barong or long-sleeve, dark trousers"))
+                .andExpect(jsonPath("$.attireNotesWomen").value("Cocktail-length or long dress"))
+                .andExpect(jsonPath("$.attirePalette").value("#f4a5a5,#a5c4f4"))
+                .andExpect(jsonPath("$.rsvpDeadline").value("2027-05-01"))
+                .andExpect(jsonPath("$.kidsPolicy").value("Adults-only celebration"))
+                .andExpect(jsonPath("$.socialHashtag").value("AttireWedding2027"))
+                .andExpect(jsonPath("$.entourage.length()").value(2))
+                .andExpect(jsonPath("$.entourage[0].role").value("Best Man"))
+                .andExpect(jsonPath("$.entourage[0].name").value("Juan Dela Cruz"))
+                .andExpect(jsonPath("$.entourage[0].id").doesNotExist())
+                .andExpect(jsonPath("$.entourage[1].role").value("Maid of Honor"))
+                .andExpect(jsonPath("$.entourage[1].name").value("Maria Santos"));
+    }
+
+    @Test
+    void publicRsvpAttireAndExtrasAreNullAndEntourageIsEmptyWhenNotSet() throws Exception {
+        String planner = register("no-attire-planner@wedding.test", "ROLE_PLANNER");
+        String projectId = createProject(planner, "No Attire Wedding");
+
+        MvcResult guest = mockMvc.perform(post("/api/projects/" + projectId + "/guests")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "firstName", "Guest", "rsvpStatus", "PENDING"))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String rsvpToken = json(guest).get("rsvpToken").asText();
+
+        mockMvc.perform(get("/api/public/rsvp/" + rsvpToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dressCode").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.kidsPolicy").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.socialHashtag").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.entourage").isArray())
+                .andExpect(jsonPath("$.entourage.length()").value(0));
+    }
+
+    @Test
+    void entourageMoveUpAndDownReorderMembersAndRemoveDeletesThem() throws Exception {
+        String planner = register("entourage-planner@wedding.test", "ROLE_PLANNER");
+        String projectId = createProject(planner, "Entourage Wedding");
+
+        String firstId = addEntourageMember(planner, projectId, "Best Man", "First");
+        String secondId = addEntourageMember(planner, projectId, "Groomsman", "Second");
+        addEntourageMember(planner, projectId, "Groomsman", "Third");
+
+        // Move the second entry up — it swaps with the first.
+        mockMvc.perform(put("/api/projects/" + projectId + "/entourage/" + secondId + "/move-up")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sortOrder").value(0));
+
+        mockMvc.perform(get("/api/projects/" + projectId + "/entourage")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].name").value("Second"))
+                .andExpect(jsonPath("$[1].name").value("First"))
+                .andExpect(jsonPath("$[2].name").value("Third"));
+
+        // Moving the first entry (now at the top) further up is a no-op.
+        mockMvc.perform(put("/api/projects/" + projectId + "/entourage/" + secondId + "/move-up")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sortOrder").value(0));
+
+        mockMvc.perform(delete("/api/projects/" + projectId + "/entourage/" + firstId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/projects/" + projectId + "/entourage")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + planner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2));
+    }
+
+    @Test
+    void entourageMemberFromAnotherProjectIsNotAccessible() throws Exception {
+        String plannerA = register("entourage-tenant-a@wedding.test", "ROLE_PLANNER");
+        String plannerB = register("entourage-tenant-b@wedding.test", "ROLE_PLANNER");
+        String projectA = createProject(plannerA, "Tenant A Wedding");
+        String projectB = createProject(plannerB, "Tenant B Wedding");
+        String memberIdA = addEntourageMember(plannerA, projectA, "Best Man", "Tenant A Member");
+        String memberIdB = addEntourageMember(plannerB, projectB, "Best Man", "Tenant B Member");
+
+        // plannerA can access projectA, but memberIdB belongs to projectB — 404, not leaked.
+        mockMvc.perform(put("/api/projects/" + projectA + "/entourage/" + memberIdB)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + plannerA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                Map.of("role", "Best Man", "name", "Hijacked"))))
+                .andExpect(status().isNotFound());
+
+        // plannerB has no access to projectA at all — 403 before the service is even reached.
+        mockMvc.perform(delete("/api/projects/" + projectA + "/entourage/" + memberIdA)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + plannerB))
+                .andExpect(status().isForbidden());
+    }
+
+    private String addEntourageMember(String token, String projectId, String role, String name) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/projects/" + projectId + "/entourage")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("role", role, "name", name))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return json(result).get("id").asText();
     }
 
     // --- Add-to-calendar (.ics) ---
@@ -521,8 +694,8 @@ class InvitationRsvpAdminIntegrationTest extends AbstractIntegrationTest {
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "name", "ICS Wedding",
                                 "weddingDate", "2027-06-12",
-                                "venueName", "Manila Cathedral",
-                                "venueAddress", "Cabildo St, Intramuros, Manila",
+                                "ceremonyVenueName", "Manila Cathedral",
+                                "ceremonyVenueAddress", "Cabildo St, Intramuros, Manila",
                                 "ceremonyTime", "15:00:00",
                                 "receptionTime", "18:30:00"))))
                 .andExpect(status().isOk());

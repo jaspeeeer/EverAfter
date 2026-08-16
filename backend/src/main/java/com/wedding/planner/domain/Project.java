@@ -56,11 +56,17 @@ public class Project {
     @Column(name = "total_budget", precision = 12, scale = 2)
     private BigDecimal totalBudget;
 
-    @Column(name = "venue_name", length = 200)
-    private String venueName;
+    @Column(name = "ceremony_venue_name", length = 200)
+    private String ceremonyVenueName;
 
-    @Column(name = "venue_address", length = 500)
-    private String venueAddress;
+    @Column(name = "ceremony_venue_address", length = 500)
+    private String ceremonyVenueAddress;
+
+    @Column(name = "reception_venue_name", length = 200)
+    private String receptionVenueName;
+
+    @Column(name = "reception_venue_address", length = 500)
+    private String receptionVenueAddress;
 
     @Column(name = "ceremony_time")
     private LocalTime ceremonyTime;
@@ -76,6 +82,34 @@ public class Project {
 
     @Column(name = "cover_attachment_id")
     private UUID coverAttachmentId;
+
+    @Column(name = "ceremony_photo_attachment_id")
+    private UUID ceremonyPhotoAttachmentId;
+
+    @Column(name = "reception_photo_attachment_id")
+    private UUID receptionPhotoAttachmentId;
+
+    @Column(name = "dress_code", length = 200)
+    private String dressCode;
+
+    @Column(name = "attire_notes_men", length = 500)
+    private String attireNotesMen;
+
+    @Column(name = "attire_notes_women", length = 500)
+    private String attireNotesWomen;
+
+    /** Comma-separated hex colors, e.g. {@code "#f4a5a5,#a5c4f4"}; null/blank means unset. */
+    @Column(name = "attire_palette", length = 300)
+    private String attirePalette;
+
+    @Column(name = "rsvp_deadline")
+    private LocalDate rsvpDeadline;
+
+    @Column(name = "kids_policy", length = 300)
+    private String kidsPolicy;
+
+    @Column(name = "social_hashtag", length = 100)
+    private String socialHashtag;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(
@@ -106,6 +140,9 @@ public class Project {
 
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<TimelineEvent> timelineEvents = new ArrayList<>();
+
+    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<EntourageMember> entourageMembers = new ArrayList<>();
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -166,6 +203,16 @@ public class Project {
         guest.setProject(null);
     }
 
+    public void addEntourageMember(EntourageMember member) {
+        entourageMembers.add(member);
+        member.setProject(this);
+    }
+
+    public void removeEntourageMember(EntourageMember member) {
+        entourageMembers.remove(member);
+        member.setProject(null);
+    }
+
     // --- Getters / setters ---
 
     public UUID getId() {
@@ -196,20 +243,36 @@ public class Project {
         this.totalBudget = totalBudget;
     }
 
-    public String getVenueName() {
-        return venueName;
+    public String getCeremonyVenueName() {
+        return ceremonyVenueName;
     }
 
-    public void setVenueName(String venueName) {
-        this.venueName = venueName;
+    public void setCeremonyVenueName(String ceremonyVenueName) {
+        this.ceremonyVenueName = ceremonyVenueName;
     }
 
-    public String getVenueAddress() {
-        return venueAddress;
+    public String getCeremonyVenueAddress() {
+        return ceremonyVenueAddress;
     }
 
-    public void setVenueAddress(String venueAddress) {
-        this.venueAddress = venueAddress;
+    public void setCeremonyVenueAddress(String ceremonyVenueAddress) {
+        this.ceremonyVenueAddress = ceremonyVenueAddress;
+    }
+
+    public String getReceptionVenueName() {
+        return receptionVenueName;
+    }
+
+    public void setReceptionVenueName(String receptionVenueName) {
+        this.receptionVenueName = receptionVenueName;
+    }
+
+    public String getReceptionVenueAddress() {
+        return receptionVenueAddress;
+    }
+
+    public void setReceptionVenueAddress(String receptionVenueAddress) {
+        this.receptionVenueAddress = receptionVenueAddress;
     }
 
     public LocalTime getCeremonyTime() {
@@ -252,6 +315,78 @@ public class Project {
         this.coverAttachmentId = coverAttachmentId;
     }
 
+    public UUID getCeremonyPhotoAttachmentId() {
+        return ceremonyPhotoAttachmentId;
+    }
+
+    public void setCeremonyPhotoAttachmentId(UUID ceremonyPhotoAttachmentId) {
+        this.ceremonyPhotoAttachmentId = ceremonyPhotoAttachmentId;
+    }
+
+    public UUID getReceptionPhotoAttachmentId() {
+        return receptionPhotoAttachmentId;
+    }
+
+    public void setReceptionPhotoAttachmentId(UUID receptionPhotoAttachmentId) {
+        this.receptionPhotoAttachmentId = receptionPhotoAttachmentId;
+    }
+
+    public String getDressCode() {
+        return dressCode;
+    }
+
+    public void setDressCode(String dressCode) {
+        this.dressCode = dressCode;
+    }
+
+    public String getAttireNotesMen() {
+        return attireNotesMen;
+    }
+
+    public void setAttireNotesMen(String attireNotesMen) {
+        this.attireNotesMen = attireNotesMen;
+    }
+
+    public String getAttireNotesWomen() {
+        return attireNotesWomen;
+    }
+
+    public void setAttireNotesWomen(String attireNotesWomen) {
+        this.attireNotesWomen = attireNotesWomen;
+    }
+
+    public String getAttirePalette() {
+        return attirePalette;
+    }
+
+    public void setAttirePalette(String attirePalette) {
+        this.attirePalette = attirePalette;
+    }
+
+    public LocalDate getRsvpDeadline() {
+        return rsvpDeadline;
+    }
+
+    public void setRsvpDeadline(LocalDate rsvpDeadline) {
+        this.rsvpDeadline = rsvpDeadline;
+    }
+
+    public String getKidsPolicy() {
+        return kidsPolicy;
+    }
+
+    public void setKidsPolicy(String kidsPolicy) {
+        this.kidsPolicy = kidsPolicy;
+    }
+
+    public String getSocialHashtag() {
+        return socialHashtag;
+    }
+
+    public void setSocialHashtag(String socialHashtag) {
+        this.socialHashtag = socialHashtag;
+    }
+
     public User getPlanner() {
         return planner;
     }
@@ -286,6 +421,10 @@ public class Project {
 
     public List<TimelineEvent> getTimelineEvents() {
         return timelineEvents;
+    }
+
+    public List<EntourageMember> getEntourageMembers() {
+        return entourageMembers;
     }
 
     public Instant getCreatedAt() {

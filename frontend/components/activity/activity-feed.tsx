@@ -37,6 +37,7 @@ const ENTITY_META: Record<
   INVITATION: { label: "Invite", Icon: Mail },
   TIMELINE_EVENT: { label: "Timeline", Icon: CalendarClock },
   ATTACHMENT: { label: "File", Icon: Paperclip },
+  ENTOURAGE_MEMBER: { label: "Entourage", Icon: UserCircle },
 };
 
 const ACTION_TONE: Record<ActivityAction, string> = {

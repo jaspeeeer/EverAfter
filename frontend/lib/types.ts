@@ -54,9 +54,12 @@ export interface ProjectResponse {
   plannerEmail: string | null;
   ownerId: string | null;
   ownerEmail: string | null;
-  /** Public invitation-page metadata (V19). */
-  venueName: string | null;
-  venueAddress: string | null;
+  /** Ceremony (church) location, shown on the public invitation page. */
+  ceremonyVenueName: string | null;
+  ceremonyVenueAddress: string | null;
+  /** Reception (venue) location. */
+  receptionVenueName: string | null;
+  receptionVenueAddress: string | null;
   /** "HH:mm:ss" from the backend's LocalTime, nullable. */
   ceremonyTime: string | null;
   receptionTime: string | null;
@@ -64,8 +67,32 @@ export interface ProjectResponse {
   allowGuestPartySize: boolean;
   maxPartySize: number | null;
   coverAttachmentId: string | null;
+  ceremonyPhotoAttachmentId: string | null;
+  receptionPhotoAttachmentId: string | null;
+  /** Short dress-code label, e.g. "Garden party formal". */
+  dressCode: string | null;
+  attireNotesMen: string | null;
+  attireNotesWomen: string | null;
+  /** Comma-separated hex colors, e.g. "#f4a5a5,#a5c4f4". */
+  attirePalette: string | null;
+  rsvpDeadline: string | null;
+  kidsPolicy: string | null;
+  /** Without the leading "#". */
+  socialHashtag: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PublicEntourageMember {
+  role: string;
+  name: string;
+}
+
+export interface EntourageMemberResponse {
+  id: string;
+  role: string;
+  name: string;
+  sortOrder: number;
 }
 
 export interface TaskResponse {
@@ -166,16 +193,30 @@ export interface RsvpViewResponse {
   rsvpStatus: RsvpStatus;
   partySize: number;
   dietaryNotes: string | null;
-  /** Public invitation-page fields (V19). */
-  venueName: string | null;
-  venueAddress: string | null;
+  /** Ceremony (church) location. */
+  ceremonyVenueName: string | null;
+  ceremonyVenueAddress: string | null;
+  /** Reception (venue) location. */
+  receptionVenueName: string | null;
+  receptionVenueAddress: string | null;
   ceremonyTime: string | null;
   receptionTime: string | null;
   /** When true, the RSVP form shows a party-size input the guest may set. */
   allowGuestPartySize: boolean;
   maxPartySize: number | null;
-  /** True when the project has a cover photo, streamed from /api/public/rsvp/{token}/cover. */
+  /** True when the project has each photo, streamed from /api/public/rsvp/{token}/{slot}. */
   hasCover: boolean;
+  hasCeremonyPhoto: boolean;
+  hasReceptionPhoto: boolean;
+  dressCode: string | null;
+  attireNotesMen: string | null;
+  attireNotesWomen: string | null;
+  attirePalette: string | null;
+  rsvpDeadline: string | null;
+  kidsPolicy: string | null;
+  socialHashtag: string | null;
+  /** Ordered, no ids — see PublicEntourageMember. */
+  entourage: PublicEntourageMember[];
 }
 
 export interface InvitationResponse {
@@ -341,7 +382,8 @@ export type ActivityEntityType =
   | "GUEST"
   | "INVITATION"
   | "TIMELINE_EVENT"
-  | "ATTACHMENT";
+  | "ATTACHMENT"
+  | "ENTOURAGE_MEMBER";
 
 export type ActivityAction = "CREATE" | "UPDATE" | "DELETE" | "RESTORE";
 

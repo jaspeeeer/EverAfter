@@ -67,14 +67,27 @@ public class PublicController {
     }
 
     /**
-     * The project's cover photo, for the invitation page banner. Keyed by the guest's own RSVP
-     * token rather than an attachment id — the public DTO never learns the attachment's id (see
-     * {@code RsvpViewResponse#hasCover}), so this is the only way in.
+     * A project's named photo slot (cover, ceremony, or reception), for the invitation page.
+     * Keyed by the guest's own RSVP token rather than an attachment id — the public DTO never
+     * learns the attachment's id (see {@code RsvpViewResponse#hasCover}/{@code
+     * hasCeremonyPhoto}/{@code hasReceptionPhoto}), so this is the only way in.
      */
     @GetMapping("/rsvp/{token}/cover")
     public ResponseEntity<InputStreamResource> cover(@PathVariable UUID token) throws IOException {
-        UUID projectId = guestService.projectIdByRsvpToken(token);
-        AttachmentService.Download download = attachmentService.downloadProjectCover(projectId);
+        return streamPhoto(attachmentService.downloadProjectCover(guestService.projectIdByRsvpToken(token)));
+    }
+
+    @GetMapping("/rsvp/{token}/ceremony-photo")
+    public ResponseEntity<InputStreamResource> ceremonyPhoto(@PathVariable UUID token) throws IOException {
+        return streamPhoto(attachmentService.downloadCeremonyPhoto(guestService.projectIdByRsvpToken(token)));
+    }
+
+    @GetMapping("/rsvp/{token}/reception-photo")
+    public ResponseEntity<InputStreamResource> receptionPhoto(@PathVariable UUID token) throws IOException {
+        return streamPhoto(attachmentService.downloadReceptionPhoto(guestService.projectIdByRsvpToken(token)));
+    }
+
+    private ResponseEntity<InputStreamResource> streamPhoto(AttachmentService.Download download) {
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(download.attachment().getContentType()))
                 .contentLength(download.attachment().getSizeBytes())

@@ -8,6 +8,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.wedding.planner.audit.ActivityLogService;
+import com.wedding.planner.domain.ActivityAction;
+import com.wedding.planner.domain.ActivityEntityType;
 import com.wedding.planner.domain.AttachmentOwnerType;
 import com.wedding.planner.domain.Project;
 import com.wedding.planner.domain.User;
@@ -21,6 +23,7 @@ import com.wedding.planner.security.AppUserPrincipal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -29,6 +32,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Unit tests for role-scoped project listing and planner resolution on create.
@@ -96,7 +100,9 @@ class ProjectServiceTest {
         when(userRepository.findById(plannerId)).thenReturn(Optional.of(plannerUser));
         when(projectRepository.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        ProjectRequest request = new ProjectRequest("Our Wedding", null, null, null, null, null, null, null, null, false, null);
+        ProjectRequest request = new ProjectRequest(
+                "Our Wedding", null, null, null, null, null, null, null, null, null, null, false, null,
+                null, null, null, null, null, null, null);
         projectService.create(request, principal(plannerId, "ROLE_PLANNER"));
 
         // The planner is loaded by their own id, never from the request.
@@ -106,7 +112,9 @@ class ProjectServiceTest {
 
     @Test
     void adminCreatingProjectWithoutPlannerIdIsRejected() {
-        ProjectRequest request = new ProjectRequest("Admin Wedding", null, null, null, null, null, null, null, null, false, null);
+        ProjectRequest request = new ProjectRequest(
+                "Admin Wedding", null, null, null, null, null, null, null, null, null, null, false, null,
+                null, null, null, null, null, null, null);
 
         assertThatThrownBy(() ->
                 projectService.create(request, principal(UUID.randomUUID(), "ROLE_ADMIN")))
@@ -124,79 +132,177 @@ class ProjectServiceTest {
         when(projectRepository.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
 
         ProjectRequest request =
-                new ProjectRequest("Assigned Wedding", null, null, targetPlannerId, null, null, null, null, null, false, null);
+                new ProjectRequest("Assigned Wedding", null, null, targetPlannerId, null, null,
+                        null, null, null, null, null, false, null,
+                        null, null, null, null, null, null, null);
         projectService.create(request, principal(adminId, "ROLE_ADMIN"));
 
         verify(userRepository).findById(targetPlannerId);
         assertThat(request.plannerId()).isEqualTo(targetPlannerId);
     }
 
-    // --- Cover photo ---
+    // --- Photo slots (cover / ceremony / reception) ---
+
+    private interface PhotoSetter {
+        void set(UUID projectId, MultipartFile file, UUID uploaderId);
+    }
+
+    private interface PhotoRemover {
+        void remove(UUID projectId);
+    }
 
     private Project projectWithId(UUID projectId) {
-        Project project = new Project("Cover Wedding", org.mockito.Mockito.mock(User.class));
+        Project project = new Project("Photo Wedding", org.mockito.Mockito.mock(User.class));
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
         return project;
     }
 
     private AttachmentResponse uploadedAttachment(UUID id) {
         return new AttachmentResponse(id, UUID.randomUUID(), AttachmentOwnerType.PROJECT,
-                UUID.randomUUID(), "cover.jpg", "image/jpeg", 100L, null, null, null);
+                UUID.randomUUID(), "photo.jpg", "image/jpeg", 100L, null, null, null);
     }
 
-    @Test
-    void settingACoverForTheFirstTimeStoresTheAttachmentIdAndDeletesNothing() {
+    /**
+     * Shared body for the set-first-time case, run once per slot below. Asserting the exact
+     * activity-log label locks in the fix for a real bug: before {@code upload()} accepted an
+     * {@code ownerLabelOverride}, every PROJECT-owned upload (cover, ceremony, reception alike)
+     * would log itself as "the cover photo" regardless of which slot it actually went into,
+     * since {@code requireOwnerInProject}'s generic PROJECT case can't tell the slots apart.
+     */
+    private void verifySettingForTheFirstTime(PhotoSetter setter, Function<Project, UUID> getId, String label) {
         UUID projectId = UUID.randomUUID();
         Project project = projectWithId(projectId);
         UUID newAttachmentId = UUID.randomUUID();
-        MockMultipartFile file = new MockMultipartFile("file", "cover.jpg", "image/jpeg", "x".getBytes());
-        when(attachmentService.upload(projectId, AttachmentOwnerType.PROJECT, projectId, file, null))
+        MockMultipartFile file = new MockMultipartFile("file", "photo.jpg", "image/jpeg", "x".getBytes());
+        when(attachmentService.upload(
+                projectId, AttachmentOwnerType.PROJECT, projectId, file, null, "the " + label))
                 .thenReturn(uploadedAttachment(newAttachmentId));
 
-        projectService.setCover(projectId, file, null);
+        setter.set(projectId, file, null);
 
-        assertThat(project.getCoverAttachmentId()).isEqualTo(newAttachmentId);
+        assertThat(getId.apply(project)).isEqualTo(newAttachmentId);
         verify(attachmentService, never()).delete(any(), any());
+        verify(activityLog).record(projectId, ActivityEntityType.PROJECT, projectId,
+                ActivityAction.UPDATE, "Updated the " + label);
+    }
+
+    private void verifySettingOverAnExisting(PhotoSetter setter, java.util.function.BiConsumer<Project, UUID> setId,
+                                             Function<Project, UUID> getId, String label) {
+        UUID projectId = UUID.randomUUID();
+        Project project = projectWithId(projectId);
+        UUID oldAttachmentId = UUID.randomUUID();
+        setId.accept(project, oldAttachmentId);
+        UUID newAttachmentId = UUID.randomUUID();
+        MockMultipartFile file = new MockMultipartFile("file", "photo.jpg", "image/jpeg", "x".getBytes());
+        when(attachmentService.upload(
+                projectId, AttachmentOwnerType.PROJECT, projectId, file, null, "the " + label))
+                .thenReturn(uploadedAttachment(newAttachmentId));
+
+        setter.set(projectId, file, null);
+
+        assertThat(getId.apply(project)).isEqualTo(newAttachmentId);
+        verify(attachmentService).delete(projectId, oldAttachmentId);
+    }
+
+    private void verifyRemoving(PhotoRemover remover, java.util.function.BiConsumer<Project, UUID> setId,
+                               Function<Project, UUID> getId, String label) {
+        UUID projectId = UUID.randomUUID();
+        Project project = projectWithId(projectId);
+        UUID attachmentId = UUID.randomUUID();
+        setId.accept(project, attachmentId);
+
+        remover.remove(projectId);
+
+        assertThat(getId.apply(project)).isNull();
+        verify(attachmentService).delete(projectId, attachmentId);
+        verify(activityLog).record(projectId, ActivityEntityType.PROJECT, projectId,
+                ActivityAction.UPDATE, "Removed the " + label);
+    }
+
+    private void verifyRemovingNonExistentIs404(PhotoRemover remover) {
+        UUID projectId = UUID.randomUUID();
+        projectWithId(projectId);
+
+        assertThatThrownBy(() -> remover.remove(projectId))
+                .isInstanceOf(ResourceNotFoundException.class);
+
+        verify(attachmentService, never()).delete(any(), any());
+    }
+
+    @Test
+    void settingACoverForTheFirstTimeStoresTheAttachmentIdAndLogsItCorrectly() {
+        verifySettingForTheFirstTime(
+                (id, file, uploader) -> projectService.setCover(id, file, uploader),
+                Project::getCoverAttachmentId, "cover photo");
     }
 
     @Test
     void settingACoverOverAnExistingOneDeletesThePriorAttachment() {
-        UUID projectId = UUID.randomUUID();
-        Project project = projectWithId(projectId);
-        UUID oldAttachmentId = UUID.randomUUID();
-        project.setCoverAttachmentId(oldAttachmentId);
-        UUID newAttachmentId = UUID.randomUUID();
-        MockMultipartFile file = new MockMultipartFile("file", "cover.jpg", "image/jpeg", "x".getBytes());
-        when(attachmentService.upload(projectId, AttachmentOwnerType.PROJECT, projectId, file, null))
-                .thenReturn(uploadedAttachment(newAttachmentId));
-
-        projectService.setCover(projectId, file, null);
-
-        assertThat(project.getCoverAttachmentId()).isEqualTo(newAttachmentId);
-        verify(attachmentService).delete(projectId, oldAttachmentId);
+        verifySettingOverAnExisting(
+                (id, file, uploader) -> projectService.setCover(id, file, uploader),
+                Project::setCoverAttachmentId, Project::getCoverAttachmentId, "cover photo");
     }
 
     @Test
     void removingACoverClearsTheFkAndDeletesTheAttachment() {
-        UUID projectId = UUID.randomUUID();
-        Project project = projectWithId(projectId);
-        UUID coverId = UUID.randomUUID();
-        project.setCoverAttachmentId(coverId);
-
-        projectService.removeCover(projectId);
-
-        assertThat(project.getCoverAttachmentId()).isNull();
-        verify(attachmentService).delete(projectId, coverId);
+        verifyRemoving(projectService::removeCover, Project::setCoverAttachmentId,
+                Project::getCoverAttachmentId, "cover photo");
     }
 
     @Test
     void removingANonExistentCoverIs404NotANoOp() {
-        UUID projectId = UUID.randomUUID();
-        projectWithId(projectId);
+        verifyRemovingNonExistentIs404(projectService::removeCover);
+    }
 
-        assertThatThrownBy(() -> projectService.removeCover(projectId))
-                .isInstanceOf(ResourceNotFoundException.class);
+    @Test
+    void settingACeremonyPhotoForTheFirstTimeStoresTheAttachmentIdAndLogsItCorrectly() {
+        verifySettingForTheFirstTime(
+                (id, file, uploader) -> projectService.setCeremonyPhoto(id, file, uploader),
+                Project::getCeremonyPhotoAttachmentId, "ceremony photo");
+    }
 
-        verify(attachmentService, never()).delete(any(), any());
+    @Test
+    void settingACeremonyPhotoOverAnExistingOneDeletesThePriorAttachment() {
+        verifySettingOverAnExisting(
+                (id, file, uploader) -> projectService.setCeremonyPhoto(id, file, uploader),
+                Project::setCeremonyPhotoAttachmentId, Project::getCeremonyPhotoAttachmentId,
+                "ceremony photo");
+    }
+
+    @Test
+    void removingACeremonyPhotoClearsTheFkAndDeletesTheAttachment() {
+        verifyRemoving(projectService::removeCeremonyPhoto, Project::setCeremonyPhotoAttachmentId,
+                Project::getCeremonyPhotoAttachmentId, "ceremony photo");
+    }
+
+    @Test
+    void removingANonExistentCeremonyPhotoIs404NotANoOp() {
+        verifyRemovingNonExistentIs404(projectService::removeCeremonyPhoto);
+    }
+
+    @Test
+    void settingAReceptionPhotoForTheFirstTimeStoresTheAttachmentIdAndLogsItCorrectly() {
+        verifySettingForTheFirstTime(
+                (id, file, uploader) -> projectService.setReceptionPhoto(id, file, uploader),
+                Project::getReceptionPhotoAttachmentId, "reception photo");
+    }
+
+    @Test
+    void settingAReceptionPhotoOverAnExistingOneDeletesThePriorAttachment() {
+        verifySettingOverAnExisting(
+                (id, file, uploader) -> projectService.setReceptionPhoto(id, file, uploader),
+                Project::setReceptionPhotoAttachmentId, Project::getReceptionPhotoAttachmentId,
+                "reception photo");
+    }
+
+    @Test
+    void removingAReceptionPhotoClearsTheFkAndDeletesTheAttachment() {
+        verifyRemoving(projectService::removeReceptionPhoto, Project::setReceptionPhotoAttachmentId,
+                Project::getReceptionPhotoAttachmentId, "reception photo");
+    }
+
+    @Test
+    void removingANonExistentReceptionPhotoIs404NotANoOp() {
+        verifyRemovingNonExistentIs404(projectService::removeReceptionPhoto);
     }
 }

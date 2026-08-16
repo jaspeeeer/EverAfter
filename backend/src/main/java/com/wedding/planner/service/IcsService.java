@@ -54,8 +54,17 @@ public class IcsService {
                 LocalDateTime.of(weddingDate, ceremonyTime != null ? ceremonyTime : LocalTime.MIDNIGHT);
         LocalDateTime end = endOf(weddingDate, start, ceremonyTime, receptionTime);
 
-        String location = joinNonBlank(rsvp.venueName(), rsvp.venueAddress());
-        String description = "RSVP: " + frontendBaseUrl + "/rsvp/" + rsvpToken;
+        // The ceremony is the calendar event's anchor (DTSTART/DTEND are ceremony-derived), so
+        // it drives LOCATION; the reception — a separate place and time — gets a mention in
+        // DESCRIPTION instead of fighting the ceremony for the one LOCATION field.
+        String location = joinNonBlank(rsvp.ceremonyVenueName(), rsvp.ceremonyVenueAddress());
+        StringBuilder description = new StringBuilder("RSVP: " + frontendBaseUrl + "/rsvp/" + rsvpToken);
+        String receptionMention = joinNonBlank(rsvp.receptionVenueName(), rsvp.receptionVenueAddress());
+        if (!receptionMention.isBlank()) {
+            // A real newline here — escape() below turns it into the RFC 5545 literal "\n"
+            // sequence; writing "\\n" directly would double-escape into "\\\\n".
+            description.append('\n').append("Reception to follow at ").append(receptionMention);
+        }
 
         List<String> lines = new ArrayList<>();
         lines.add("BEGIN:VCALENDAR");
@@ -71,7 +80,7 @@ public class IcsService {
         if (!location.isBlank()) {
             lines.add("LOCATION:" + escape(location));
         }
-        lines.add("DESCRIPTION:" + escape(description));
+        lines.add("DESCRIPTION:" + escape(description.toString()));
         lines.add("END:VEVENT");
         lines.add("END:VCALENDAR");
         return String.join("\r\n", lines) + "\r\n";

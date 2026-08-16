@@ -116,12 +116,25 @@ physically exists); see `docs/undo-delete.md` for the real bug this caused
 then `docs/guests.md`, `docs/vendors.md`, `docs/budget.md`, `docs/checklist.md` for the per-entity
 notes.
 
-**Invitation-page metadata (`V19`).** `projects` gained `venue_name`, `venue_address`,
-`ceremony_time`, `reception_time` (all nullable) so the public RSVP page can show more than a
-bare date — edited via the new **Settings** tab (`docs/project-settings.md`) under the existing
-`canAccess` rule (no new permission check: admin/managing planner/owning couple could already
-`PUT` a project). `V19` also added `allow_guest_party_size`/`max_party_size`/
-`cover_attachment_id`, unused columns for later phases (see `docs/rsvp.md`).
+**Invitation-page metadata (`V19`, venue split into ceremony/reception in `V20`).** `projects`
+carries **two** locations — `ceremony_venue_name`/`ceremony_venue_address` and
+`reception_venue_name`/`reception_venue_address` (`V20`; `V19`'s original single
+`venue_name`/`venue_address` was dropped after a backfill into the ceremony columns), plus
+`ceremony_time`/`reception_time` (`V19`, unchanged by the split — already per-event) — so the
+public RSVP page can show more than a bare date. Edited via the **Settings** tab
+(`docs/project-settings.md`) under the existing `canAccess` rule (no new permission check:
+admin/managing planner/owning couple could already `PUT` a project). `V19` also added
+`allow_guest_party_size`/`max_party_size`/`cover_attachment_id`; `V20` added
+`ceremony_photo_attachment_id`/`reception_photo_attachment_id` — three independent single-photo
+slots sharing one `AttachmentOwnerType.PROJECT` (see `docs/project-photos.md`). `V21` added seven
+more nullable scalars (`dress_code`, `attire_notes_men`, `attire_notes_women`, `attire_palette` —
+a comma-separated hex list, `rsvp_deadline`, `kids_policy`, `social_hashtag`) plus a genuinely new
+child table, `entourage_members` (`id`, `project_id` FK `ON DELETE CASCADE`, `role`, `name`,
+`sort_order`, no soft delete) — the wedding party is an ordered list, not a scalar, so unlike the
+other `V21` additions it gets its own table/service/controller under
+`/api/projects/{projectId}/entourage`, following the `Guest`/`Task` child-resource shape rather
+than the admin-managed-lookup shape (`guest_roles`/`vendor_categories`). See
+`docs/attire-and-entourage.md`. See `docs/rsvp.md` for the full guest-facing feature.
 
 Supabase specifics: connect via the **Session Pooler**
 (`aws-1-ap-northeast-2.pooler.supabase.com:5432`, user `postgres.<project-ref>`,

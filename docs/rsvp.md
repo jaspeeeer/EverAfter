@@ -12,32 +12,51 @@ one guest and leaks nothing else.
 
 1. The couple/planner copies a guest's link from the Guests tab: `<origin>/rsvp/<token>`.
 2. The page (`/rsvp/[token]`, public in `frontend/proxy.ts`) server-fetches
-   `GET /api/public/rsvp/{token}` and renders an invitation-style card: project name, wedding
-   date, a "When & where" block (venue name/address + ceremony/reception time, each shown only
-   when the planner set it — see below), "Hello, <guest>" (the guest's composed display name —
-   see [guests.md](guests.md)), and a form — attendance choice ("Joyfully accepts / Regretfully
-   declines / Not sure yet"), dietary needs, and — only when the project has opted in — a party
-   size field (see below).
+   `GET /api/public/rsvp/{token}` and renders an invitation: a cover-photo hero banner (see
+   [project-photos.md](project-photos.md)), the couple's names and wedding date, an
+   "Add to calendar" link and (only when set) an RSVP-by date, a kids policy, and a social
+   hashtag, a **Ceremony** section and a **Reception** section (each with its own
+   name/address/time/photo/embedded map — see below), an **Attire** section and an **Entourage**
+   section (dress code, palette, wedding party — see
+   [attire-and-entourage.md](attire-and-entourage.md)), "Hello, <guest>" (the guest's composed
+   display name — see [guests.md](guests.md)), and a form — attendance choice ("Joyfully accepts
+   / Regretfully declines / Not sure yet"), dietary needs, and — only when the project has opted
+   in — a party size field (see below).
 3. Submit → `PUT /api/public/rsvp/{token}` (via `submitRsvpAction`) → thank-you state. The link
    stays live so guests can change their answer; updates appear immediately in the project's
    guest list and dietary rollup.
 
-## Invitation-page metadata (`V19`)
+## Ceremony & reception venues (`V19`, split into two in `V20`)
 
-`projects` gained `venue_name`, `venue_address`, `ceremony_time`, `reception_time` (all
-nullable) so the invitation page can show more than a bare date. Planners/admins/the owning
-couple edit them on the new **Settings** tab (`/projects/{id}/settings`,
-`project-settings-form.tsx`) — a full-replace `PUT /api/projects/{projectId}` under the existing
-`canAccess` rule, no new endpoint or permission check. `RsvpViewResponse` exposes all four
-fields; each is optional and the page section (and, when there's no address, the directions
-link) simply doesn't render when unset. A directions link is built client-side from
-`venueAddress` via a plain `https://maps.google.com/?q=<encoded address>` URL — no geocoding, no
-new dependency.
+Real weddings almost always have two distinct locations — a ceremony (church) and a reception
+(venue) — so `projects` carries them as two independent pairs: `ceremony_venue_name`/
+`ceremony_venue_address` and `reception_venue_name`/`reception_venue_address` (`V20`, both
+nullable), alongside `ceremony_time`/`reception_time` (`V19` — already correctly per-event, no
+rename needed when the venue split landed). Planners/admins/the owning couple edit all six
+fields on the **Settings** tab (`/projects/{id}/settings`, `project-settings-form.tsx`, split
+into separate **Ceremony** and **Reception** cards) — a full-replace `PUT /api/projects/{projectId}`
+under the existing `canAccess` rule, no new endpoint or permission check.
 
-`V19` also added `allow_guest_party_size`, `max_party_size`, and `cover_attachment_id` — the first
-two are wired up below; `cover_attachment_id` is unused until a later phase adds the project cover
-photo. Batched into one migration since they're one coherent "invitation page" story rather than
-three unrelated schema changes.
+`RsvpViewResponse` exposes all six fields plus `hasCeremonyPhoto`/`hasReceptionPhoto` (see
+[project-photos.md](project-photos.md)). Each `VenueSection` (`components/rsvp/venue-section.tsx`)
+renders nothing at all when its location has zero fields set, so a project that only configured
+one venue doesn't leave an empty section on the page. The page builds an array of whichever of
+its four optional sections (ceremony, reception, attire, entourage — see
+[attire-and-entourage.md](attire-and-entourage.md)) have content, then renders a plain divider
+(`bg-border`, no new CSS) between each adjacent pair — so any subset renders with no gaps or
+dangling dividers, not just the ceremony/reception pair this started as.
+
+**Embedded map per venue, not one combined map.** Each section with an address gets its own
+`VenueMap` (`components/rsvp/venue-map.tsx`) — a real, interactive, panable/zoomable Google Map
+embedded via `https://www.google.com/maps?q=<address>&output=embed`, no API key required. That
+embed form only accepts **one** query, which is the actual reason for one map per venue rather
+than a single map with two pins — a paid Maps Embed API key would be needed for multiple markers,
+and this app deliberately has none. A directions link (`https://maps.google.com/?q=<address>`)
+sits below each map, built client-side — no geocoding, no new dependency.
+
+`V19` also added `allow_guest_party_size`, `max_party_size`, and `cover_attachment_id`; `V20`
+added `ceremony_photo_attachment_id`/`reception_photo_attachment_id`. Party size is covered below;
+all three photo slots are covered in [project-photos.md](project-photos.md).
 
 ## Guest-controlled party size (opt-in, `V19`)
 
@@ -72,6 +91,10 @@ from the same fields the invitation already shows — no calendar library, no ne
   Times are emitted as RFC 5545 **floating** (no `Z`, no `TZID`): a ceremony is a wall-clock
   instant at the venue, so a guest opening the file from another time zone should see the same
   3:00 PM the invitation printed, not one shifted by the difference between zones.
+- **`LOCATION`/`DESCRIPTION`** — the calendar event has exactly one `LOCATION` field, so the
+  **ceremony** venue drives it (it's the anchor `DTSTART`/`DTEND` are derived from). When a
+  reception venue is also set, it gets a one-line mention appended to `DESCRIPTION`
+  ("Reception to follow at …") instead of fighting the ceremony for `LOCATION`.
 - **`UID`** is `{rsvpToken}@wedding-planner` — deterministic per guest, so re-downloading the file
   updates the guest's existing calendar entry instead of creating a duplicate. This reuses the
   RSVP token that's already the page's only credential rather than exposing any new id.
@@ -86,7 +109,7 @@ from the same fields the invitation already shows — no calendar library, no ne
 `:8080` directly (no CORS is configured for it) — so the RSVP page's link points at
 `app/api/public/rsvp/[token]/calendar.ics/route.ts`, a Next.js route handler that streams the
 backend's response server-side, exactly like the cover-photo proxy
-(see [project-cover.md](project-cover.md)). This carries no auth of its own; the token in the URL
+(see [project-photos.md](project-photos.md)). This carries no auth of its own; the token in the URL
 is the only credential, same as the endpoint it forwards to.
 
 ## Social preview (`generateMetadata`)
@@ -99,7 +122,7 @@ and sets:
 
 - `title`/`description` — "You're invited to {project}" / "{project} — {wedding date}".
 - `openGraph.images` / `twitter.image` — only when `rsvp.hasCover` (see
-  [project-cover.md](project-cover.md)); omitted entirely otherwise, so unfurlers fall back to a
+  [project-photos.md](project-photos.md)); omitted entirely otherwise, so unfurlers fall back to a
   text-only card rather than a broken image.
 - `twitter.card` — `summary_large_image` when there's a cover, plain `summary` otherwise.
 
@@ -117,7 +140,7 @@ metadata once the page component itself calls `notFound()`, so this only guards 
 `generateMetadata` crashing before that boundary ever gets a chance to render.
 
 Manually verified: `curl -A 'facebookexternalhit/1.1' <cover-url>` returns `200` with
-`Content-Type: image/jpeg` (no auth needed — see [project-cover.md](project-cover.md)), and the
+`Content-Type: image/jpeg` (no auth needed — see [project-photos.md](project-photos.md)), and the
 rendered page's `<head>` carries the expected `og:*`/`twitter:*` tags with and without a cover set.
 
 ## Security posture
@@ -152,10 +175,12 @@ rendered page's `<head>` carries the expected `og:*`/`twitter:*` tags with and w
   (`viewByRsvpToken` / `respondByRsvpToken`), `service/IcsService.java`, `dto/RsvpDtos.java`
 - `backend/.../security/RateLimitFilter.java`, `config/RateLimitProperties.java`,
   `web/ProblemDetails.java` (shared RFC-7807 body builder)
-- `frontend/app/rsvp/[token]/page.tsx`, `components/rsvp/rsvp-form.tsx`,
+- `frontend/app/rsvp/[token]/page.tsx`,
+  `components/rsvp/{rsvp-form,venue-section,venue-map,attire-section,entourage-section}.tsx`,
   `app/actions/invitations.ts` (`submitRsvpAction`),
   `app/api/public/rsvp/[token]/calendar.ics/route.ts`
 - Tests: `InvitationRsvpAdminIntegrationTest`, `RateLimitFilterIntegrationTest`,
   `GuestServiceTest` (party-size toggle branches), `IcsServiceTest`, `e2e/invite-rsvp.spec.ts`,
   `e2e/party-size-toggle.spec.ts`, `e2e/add-to-calendar.spec.ts`,
-  `e2e/rsvp-og-metadata.spec.ts`
+  `e2e/rsvp-og-metadata.spec.ts`, `e2e/project-settings.spec.ts` (two-venue-section rendering),
+  `e2e/attire-entourage-rsvp.spec.ts`

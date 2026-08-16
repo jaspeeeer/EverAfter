@@ -1,11 +1,15 @@
+import type { ReactNode } from "react";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import { CalendarPlus, Heart, MapPin } from "lucide-react";
+import { CalendarPlus, Hash, Heart } from "lucide-react";
 import { getPublicRsvp } from "@/lib/data";
 import { ApiError } from "@/lib/api";
-import { formatDate, formatTime } from "@/lib/format";
+import { formatDate } from "@/lib/format";
+import { AttireSection } from "@/components/rsvp/attire-section";
+import { EntourageSection } from "@/components/rsvp/entourage-section";
 import { RsvpForm } from "@/components/rsvp/rsvp-form";
+import { VenueSection } from "@/components/rsvp/venue-section";
 
 /**
  * The page's own origin, as seen by whoever is requesting it (browser or social-media scraper) —
@@ -82,25 +86,68 @@ export default async function RsvpPage({
     throw error;
   }
 
-  const showVenue =
-    rsvp.venueName || rsvp.venueAddress || rsvp.ceremonyTime || rsvp.receptionTime;
-  const directionsHref = rsvp.venueAddress
-    ? `https://maps.google.com/?q=${encodeURIComponent(rsvp.venueAddress)}`
-    : null;
-  const addToCalendar = rsvp.weddingDate && (
-    <a
-      href={`/api/public/rsvp/${token}/calendar.ics`}
-      download
-      className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-    >
-      <CalendarPlus className="size-4" />
-      Add to calendar
-    </a>
+  const hasCeremony = Boolean(
+    rsvp.ceremonyVenueName || rsvp.ceremonyVenueAddress || rsvp.ceremonyTime || rsvp.hasCeremonyPhoto,
   );
+  const hasReception = Boolean(
+    rsvp.receptionVenueName || rsvp.receptionVenueAddress || rsvp.receptionTime || rsvp.hasReceptionPhoto,
+  );
+  const hasAttire = Boolean(
+    rsvp.dressCode || rsvp.attireNotesMen || rsvp.attireNotesWomen || rsvp.attirePalette,
+  );
+  const hasEntourage = rsvp.entourage.length > 0;
+
+  // Rendered in this order, with a divider between whichever adjacent pair are both present —
+  // a project that only set up some of these doesn't leave gaps or dangling dividers.
+  const sections: Array<{ key: string; node: ReactNode }> = [];
+  if (hasCeremony) {
+    sections.push({
+      key: "ceremony",
+      node: (
+        <VenueSection
+          kind="Ceremony"
+          name={rsvp.ceremonyVenueName}
+          address={rsvp.ceremonyVenueAddress}
+          time={rsvp.ceremonyTime}
+          photoUrl={rsvp.hasCeremonyPhoto ? `/api/public/rsvp/${token}/ceremony-photo` : null}
+        />
+      ),
+    });
+  }
+  if (hasReception) {
+    sections.push({
+      key: "reception",
+      node: (
+        <VenueSection
+          kind="Reception"
+          name={rsvp.receptionVenueName}
+          address={rsvp.receptionVenueAddress}
+          time={rsvp.receptionTime}
+          photoUrl={rsvp.hasReceptionPhoto ? `/api/public/rsvp/${token}/reception-photo` : null}
+        />
+      ),
+    });
+  }
+  if (hasAttire) {
+    sections.push({
+      key: "attire",
+      node: (
+        <AttireSection
+          dressCode={rsvp.dressCode}
+          notesMen={rsvp.attireNotesMen}
+          notesWomen={rsvp.attireNotesWomen}
+          palette={rsvp.attirePalette}
+        />
+      ),
+    });
+  }
+  if (hasEntourage) {
+    sections.push({ key: "entourage", node: <EntourageSection members={rsvp.entourage} /> });
+  }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md">
+    <div className="flex min-h-screen justify-center px-4 py-12 sm:py-16">
+      <div className="w-full max-w-2xl">
         {rsvp.hasCover && (
           // Plain <img>, matching the rest of the app (see docs/attachments.md) — this route is
           // public anyway, so next/image's auth-cookie limitation doesn't even apply here.
@@ -108,71 +155,55 @@ export default async function RsvpPage({
           <img
             src={`/api/public/rsvp/${token}/cover`}
             alt=""
-            className="mb-6 h-40 w-full rounded-xl object-cover shadow-sm"
+            className="mb-10 h-56 w-full rounded-xl object-cover shadow-sm sm:h-72"
           />
         )}
-        <div className="mb-8 flex flex-col items-center text-center">
-          <div className="mb-3 flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <Heart className="size-6" />
+
+        <div className="mb-10 flex flex-col items-center text-center">
+          <div className="mb-4 flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <Heart className="size-7" />
           </div>
           <p className="text-sm uppercase tracking-widest text-muted-foreground">
             You&apos;re invited to
           </p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight">{rsvp.projectName}</h1>
+          <h1 className="mt-2 text-4xl font-bold tracking-tight sm:text-5xl">
+            {rsvp.projectName}
+          </h1>
           {rsvp.weddingDate && (
-            <p className="mt-1 text-sm text-muted-foreground">
-              {formatDate(rsvp.weddingDate)}
+            <p className="mt-2 text-base text-muted-foreground">{formatDate(rsvp.weddingDate)}</p>
+          )}
+          {rsvp.weddingDate && (
+            <a
+              href={`/api/public/rsvp/${token}/calendar.ics`}
+              download
+              className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+            >
+              <CalendarPlus className="size-4" />
+              Add to calendar
+            </a>
+          )}
+          {rsvp.rsvpDeadline && (
+            <p className="mt-3 text-sm text-muted-foreground">
+              Please RSVP by {formatDate(rsvp.rsvpDeadline)}
+            </p>
+          )}
+          {rsvp.kidsPolicy && (
+            <p className="mt-1 text-sm text-muted-foreground">{rsvp.kidsPolicy}</p>
+          )}
+          {rsvp.socialHashtag && (
+            <p className="mt-1 inline-flex items-center gap-1 text-sm font-medium text-primary">
+              <Hash className="size-3.5" />
+              {rsvp.socialHashtag}
             </p>
           )}
         </div>
 
-        {showVenue && (
-          <div className="mb-6 rounded-xl border border-border bg-card p-5 text-card-foreground shadow-sm">
-            <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              When &amp; where
-            </h2>
-            <div className="space-y-2 text-sm">
-              {rsvp.venueName && (
-                <p className="font-medium text-foreground">{rsvp.venueName}</p>
-              )}
-              {rsvp.venueAddress && (
-                <p className="text-muted-foreground">{rsvp.venueAddress}</p>
-              )}
-              {(rsvp.ceremonyTime || rsvp.receptionTime) && (
-                <ul className="mt-2 space-y-1 text-muted-foreground">
-                  {rsvp.ceremonyTime && (
-                    <li>
-                      <span className="font-medium text-foreground">Ceremony</span> ·{" "}
-                      {formatTime(rsvp.ceremonyTime)}
-                    </li>
-                  )}
-                  {rsvp.receptionTime && (
-                    <li>
-                      <span className="font-medium text-foreground">Reception</span> ·{" "}
-                      {formatTime(rsvp.receptionTime)}
-                    </li>
-                  )}
-                </ul>
-              )}
-              {directionsHref && (
-                <a
-                  href={directionsHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-                >
-                  <MapPin className="size-4" />
-                  Get directions
-                </a>
-              )}
-              {addToCalendar}
-            </div>
+        {sections.map((section, index) => (
+          <div key={section.key}>
+            {index > 0 && <div className="mx-auto mb-10 h-px w-24 bg-border" />}
+            <div className="mb-10">{section.node}</div>
           </div>
-        )}
-
-        {!showVenue && addToCalendar && (
-          <div className="mb-6 flex justify-center">{addToCalendar}</div>
-        )}
+        ))}
 
         <RsvpForm token={token} rsvp={rsvp} />
       </div>

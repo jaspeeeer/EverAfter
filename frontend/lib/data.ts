@@ -11,6 +11,7 @@ import type {
   BookingConversionReport,
   BudgetSummaryResponse,
   ChecklistTemplateResponse,
+  EntourageMemberResponse,
   ExpenseResponse,
   GuestResponse,
   GuestRoleResponse,
@@ -69,6 +70,9 @@ export const getPublicInvitation = (token: string) =>
 
 export const getTimeline = (id: string) =>
   authedGet<TimelineEventResponse[]>(`/api/projects/${id}/timeline`);
+
+export const getEntourage = (id: string) =>
+  authedGet<EntourageMemberResponse[]>(`/api/projects/${id}/entourage`);
 
 // --- Templates (browse: planner/admin) ---
 

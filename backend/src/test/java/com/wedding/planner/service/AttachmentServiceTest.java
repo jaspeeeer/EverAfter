@@ -148,6 +148,25 @@ class AttachmentServiceTest {
     }
 
     @Test
+    void uploadWithAnOwnerLabelOverrideSkipsTheGenericLookupAndUsesItInTheLog() throws Exception {
+        // PROJECT-owned uploads (cover/ceremony/reception photos) all share one owner type with
+        // ownerId == projectId, so the generic requireOwnerInProject lookup can't tell them
+        // apart — ProjectService always passes an explicit override for exactly this reason.
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(mock(Project.class)));
+        when(attachmentRepository.save(any(Attachment.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "church.jpg", "image/jpeg", "jpeg-bytes".getBytes());
+
+        service.upload(projectId, AttachmentOwnerType.PROJECT, projectId, file, null,
+                "the ceremony photo");
+
+        verify(activityLog).record(eq(projectId), any(), any(), any(),
+                eq("Attached church.jpg to the ceremony photo"));
+        verify(vendorRepository, never()).findById(any());
+    }
+
+    @Test
     void deleteRemovesTheRowAndTheStoredFile() throws Exception {
         UUID attachmentId = UUID.randomUUID();
         Attachment attachment = mock(Attachment.class);

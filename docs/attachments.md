@@ -1,7 +1,7 @@
 # Attachments
 
 Files (contracts, receipts, quotes) hung off a vendor, a vendor payment, or an expense — plus a
-project's own cover photo (see below).
+project's own named photo slots (see below).
 
 ## Data model
 
@@ -17,11 +17,14 @@ payment rows without touching their attachments); `VendorService.deletePayment` 
 `ExpenseService.delete` each clear their own single owner's attachments. All three call
 `AttachmentService.deleteAllFor`.
 
-**`PROJECT` is the odd one out (`V19`).** Every other owner type can have any number of
-attachments; a project has **at most one** (its cover photo), tracked via a dedicated
-`projects.cover_attachment_id` FK rather than the generic list query — `ProjectService.setCover`
-hard-deletes the prior cover once a new one lands, so there's never more than one live row for a
-given project. See [project-cover.md](project-cover.md) for the full feature.
+**`PROJECT` is the odd one out (`V19`/`V20`).** Every other owner type can have any number of
+attachments; a project has **at most one photo per named slot** — cover, ceremony, reception —
+each tracked via its own dedicated FK column (`cover_attachment_id`,
+`ceremony_photo_attachment_id`, `reception_photo_attachment_id`) rather than the generic list
+query. All three slots share this one owner type since `ownerId` is always the project itself
+regardless of slot; `ProjectService`'s photo setters hard-delete the prior photo in a slot once a
+new one lands, so there's never more than one live row per slot. See
+[project-photos.md](project-photos.md) for the full feature.
 
 Stored bytes live outside Postgres: `AttachmentStorage` (filesystem impl:
 `FilesystemAttachmentStorage`) writes under `app.attachments.storage-root`

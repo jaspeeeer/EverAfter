@@ -40,6 +40,9 @@ class GuestServiceTest {
     private GuestRoleService guestRoleService;
 
     @Mock
+    private EntourageService entourageService;
+
+    @Mock
     private ActivityLogService activityLog;
 
     @InjectMocks
